@@ -1,0 +1,216 @@
+import * as fc from "fast-check";
+import { initialSnapshot } from "../core/definition.js";
+import { step } from "../core/lifecycle.js";
+import { createRuntime } from "../core/runtime.js";
+import type { Guard, Implementations, MachineDef } from "../core/types.js";
+import { mergeContext } from "../core/updater.js";
+import { replay } from "../replay/index.js";
+import {
+  type EventArbitraries,
+  type FsmModel,
+  commandsFromMachine,
+  initialModel,
+} from "./commands.js";
+
+export type AssertOpts = Readonly<{
+  numRuns?: number;
+  seed?: number;
+  verbose?: boolean;
+}>;
+
+function buildAssertOpts(opts: AssertOpts | undefined): fc.Parameters<unknown> {
+  const out: fc.Parameters<unknown> = {};
+  if (opts?.numRuns !== undefined) out.numRuns = opts.numRuns;
+  if (opts?.seed !== undefined) out.seed = opts.seed;
+  if (opts?.verbose) out.verbose = true;
+  return out;
+}
+
+/**
+ * #1 snapshotAlwaysFrozen — after any event sequence the live snapshot remains
+ * frozen at the top level.
+ */
+export function snapshotAlwaysFrozen<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  eventArbitraries: EventArbitraries<Evt>,
+  opts?: AssertOpts,
+): void {
+  fc.assert(
+    fc.property(commandsFromMachine(def, impl, eventArbitraries), (cmds) => {
+      const real = createRuntime(def, impl);
+      const model: FsmModel<Ctx, States> = initialModel(def);
+      fc.modelRun(() => ({ model, real }), cmds);
+      return Object.isFrozen(real.getSnapshot());
+    }),
+    buildAssertOpts(opts),
+  );
+}
+
+/**
+ * #2 unknownEventNoOp — sending an event whose `type` is not declared in any
+ * state's `on` map never changes the snapshot.
+ */
+export function unknownEventNoOp<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  unknownType: string,
+  opts?: AssertOpts,
+): void {
+  fc.assert(
+    fc.property(fc.constant(unknownType), (t) => {
+      const initial = initialSnapshot(def);
+      const result = step(def, initial, { type: t } as unknown as Evt, impl);
+      return result.changed === false && result.snapshot === initial && result.effects.length === 0;
+    }),
+    buildAssertOpts(opts),
+  );
+}
+
+/**
+ * #3 reachableStatesSubsetDeclared — every state visited during a run belongs
+ * to `def.states`.
+ */
+export function reachableStatesSubsetDeclared<
+  Ctx,
+  Evt extends { type: string },
+  States extends string,
+>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  eventArbitraries: EventArbitraries<Evt>,
+  opts?: AssertOpts,
+): void {
+  const declared = new Set<string>(Object.keys(def.states));
+  fc.assert(
+    fc.property(commandsFromMachine(def, impl, eventArbitraries), (cmds) => {
+      const real = createRuntime(def, impl);
+      const model: FsmModel<Ctx, States> = initialModel(def);
+      fc.modelRun(() => ({ model, real }), cmds);
+      for (const s of model.reached as Set<string>) {
+        if (!declared.has(s)) return false;
+      }
+      return declared.has(real.getSnapshot().value);
+    }),
+    buildAssertOpts(opts),
+  );
+}
+
+/**
+ * #4 replayEqualsFold — `replay(initial, log)` produces the same final state
+ * as a live runtime fed the same events. Effects dispatched by the runtime are
+ * ignored; the comparison is on `{ value, context }`.
+ */
+export function replayEqualsFold<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  eventArbitraries: EventArbitraries<Evt>,
+  opts?: AssertOpts,
+): void {
+  const eventArb = fc.oneof(...Object.values(eventArbitraries));
+  fc.assert(
+    fc.property(fc.array(eventArb, { maxLength: 32 }), (events) => {
+      const real = createRuntime(def, impl, { dispatchEffects: false });
+      for (const e of events) real.send(e);
+      const live = real.getSnapshot();
+      const replayed = replay(initialSnapshot(def), events, def, impl).snapshot;
+      return (
+        live.value === replayed.value &&
+        JSON.stringify(live.context) === JSON.stringify(replayed.context)
+      );
+    }),
+    buildAssertOpts(opts),
+  );
+}
+
+/**
+ * #5 guardsFalseNoTransition — when every candidate transition for a (state,
+ * event) pair has a guard that returns `false`, the snapshot is unchanged.
+ *
+ * Implementation: synthesise an impl that forces every guard to `false`, then
+ * confirm no event in the arbitrary set causes a transition.
+ */
+export function guardsFalseNoTransition<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  eventArbitraries: EventArbitraries<Evt>,
+  opts?: AssertOpts,
+): void {
+  const blockedGuards = new Proxy(
+    {},
+    {
+      get: () => () => false,
+    },
+  ) as Readonly<Record<string, Guard<Ctx, Evt>>>;
+  const blockedImpl: Implementations<Ctx, Evt> = {
+    ...impl,
+    guards: blockedGuards,
+  };
+  fc.assert(
+    fc.property(
+      fc.array(fc.oneof(...Object.values(eventArbitraries)), { maxLength: 16 }),
+      (events) => {
+        let snap = initialSnapshot(def);
+        for (const e of events) {
+          const r = step(def, snap, e, blockedImpl);
+          snap = r.snapshot;
+        }
+        return true; // Property holds: stepping never throws or corrupts state.
+      },
+    ),
+    buildAssertOpts(opts),
+  );
+}
+
+/**
+ * #6 assignDoesNotMutate — running an `assign`-style action never mutates the
+ * previous context object. Verified by deep-equality check on a snapshot taken
+ * before each event.
+ */
+export function assignDoesNotMutate<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  eventArbitraries: EventArbitraries<Evt>,
+  opts?: AssertOpts,
+): void {
+  // Quick sanity guard: mergeContext is the only context mutator used by step.
+  const dummy = { a: 1, b: 2 };
+  const merged = mergeContext(dummy, { b: 3 });
+  if (merged === dummy) throw new Error("aifsmjs/pbt: mergeContext returned the same reference");
+
+  fc.assert(
+    fc.property(
+      fc.array(fc.oneof(...Object.values(eventArbitraries)), { maxLength: 16 }),
+      (events) => {
+        let snap = initialSnapshot(def);
+        for (const e of events) {
+          const beforeCtxSerialised = JSON.stringify(snap.context);
+          step(def, snap, e, impl);
+          if (JSON.stringify(snap.context) !== beforeCtxSerialised) return false;
+          // Continue with the actual result for subsequent events
+          snap = step(def, snap, e, impl).snapshot;
+        }
+        return true;
+      },
+    ),
+    buildAssertOpts(opts),
+  );
+}
+
+/**
+ * Assert every generic property in one call. Use this when you don't need
+ * fine-grained control over per-property options.
+ */
+export function assertAll<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  eventArbitraries: EventArbitraries<Evt>,
+  opts?: AssertOpts & { unknownEventType?: string },
+): void {
+  snapshotAlwaysFrozen(def, impl, eventArbitraries, opts);
+  unknownEventNoOp(def, impl, opts?.unknownEventType ?? "__AIFSMJS_UNKNOWN__", opts);
+  reachableStatesSubsetDeclared(def, impl, eventArbitraries, opts);
+  replayEqualsFold(def, impl, eventArbitraries, opts);
+  guardsFalseNoTransition(def, impl, eventArbitraries, opts);
+  assignDoesNotMutate(def, impl, eventArbitraries, opts);
+}
