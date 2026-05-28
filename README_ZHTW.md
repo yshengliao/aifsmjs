@@ -8,6 +8,8 @@
 
 > 一個小而嚴格的 FSM library，為任何需要可重現、可重播狀態流轉的 TypeScript/JS app 而生：把 lifecycle 寫成 pure `step()`，把 Chain-of-Responsibility 直覺收斂到 cross-cutting concerns（observe / persist / replay）── 而非 transition 主流程。
 
+隸屬 [ai\*js micro-runtime 生態系](https://github.com/yshengliao) ─ 另見 [aibridgejs](https://github.com/yshengliao/aibridgejs)（cross-context RPC）與 [aiecsjs](https://github.com/yshengliao/aiecsjs)（ECS）。
+
 **主要受眾**：所有處理 stateful flow 的工程師 ── 多步驟表單、checkout 流程、auth flow、教學引導步驟、文件審批狀態機、互動 app 的 scene flow，以及瀏覽器遊戲的相同模式（PixiJS / Svelte 5 / 純 Canvas / WebGL）。Library 本身**環境中立**（pure core + adapter 邊界）：browser、Node、Bun、Deno、Flutter WebView、Web Worker 全部都跑。Roadmap 段把遊戲特有的便利功能（tick hook、ECS bridge）保留為 opt-in subpath，不進 core surface。
 
 ---

@@ -8,9 +8,9 @@
 
 > A small, strict FSM library for any TypeScript/JS app that needs deterministic, replayable state transitions. Lifecycle is a pure `step()` function. Chain-of-Responsibility intuition is reserved for cross-cutting concerns (observe / persist / replay), never for the transition core.
 
-**Primary audience**: developers building stateful flows — multi-step forms, checkout funnels, auth flows, tutorial sequences, document-status workflows, scene flow in interactive apps, and the same patterns in browser-based games (PixiJS / Svelte 5 / plain Canvas / WebGL). The core is **environment-neutral** (pure function + adapter boundary): browser, Node, Bun, Deno, Flutter WebView, and Web Workers all work. The Roadmap section keeps gaming-specific niceties (tick hook, ECS bridge) as opt-in subpaths, not core surface.
+Part of the [ai\*js micro-runtime ecosystem](https://github.com/yshengliao) — see also [aibridgejs](https://github.com/yshengliao/aibridgejs) (cross-context RPC) and [aiecsjs](https://github.com/yshengliao/aiecsjs) (ECS).
 
-> Traditional Chinese version: [README_ZHTW.md](README_ZHTW.md).
+**Primary audience**: developers building stateful flows — multi-step forms, checkout funnels, auth flows, tutorial sequences, document-status workflows, scene flow in interactive apps, and the same patterns in browser-based games (PixiJS / Svelte 5 / plain Canvas / WebGL). The core is **environment-neutral** (pure function + adapter boundary): browser, Node, Bun, Deno, Flutter WebView, and Web Workers all work. The Roadmap section keeps gaming-specific niceties (tick hook, ECS bridge) as opt-in subpaths, not core surface.
 
 ---
 
