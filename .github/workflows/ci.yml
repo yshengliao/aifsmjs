@@ -44,3 +44,6 @@ jobs:
 
       - name: Check bundle sizes
         run: pnpm check:size
+
+      - name: Verify llms-full.txt is up to date
+        run: pnpm verify:llms

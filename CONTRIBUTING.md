@@ -63,6 +63,36 @@ be rejected.
 - For security issues, please email the maintainer rather than filing
   publicly.
 
+## Release flow
+
+Releases are automated via the **Publish to npm** GitHub Action
+([`.github/workflows/publish.yml`](.github/workflows/publish.yml)). The
+required `NPM_TOKEN` secret is already configured at the repo level. From
+a clean tree on `main`:
+
+```bash
+# 1. Bump version + create commit + create tag (single command)
+pnpm version patch       # or `minor` / `major`
+
+# 2. Push the commit AND the tag in one go
+git push --follow-tags
+```
+
+The workflow triggers on `v*` tag push and runs the full gate before
+publishing:
+
+1. verify tag matches `package.json#version`
+2. typecheck / lint / coverage (with 100/100/100/90 thresholds)
+3. build / verify exports / check bundle sizes / verify llms-full.txt
+4. `pnpm publish --provenance --access public` (npm supply-chain
+   attestation is generated automatically)
+
+A failed gate stops the publish; the tag stays on the repo but nothing
+ships. If you need to test the gate without publishing, trigger the
+workflow manually via `workflow_dispatch` with `dry-run: true`.
+
+For prereleases (e.g. `0.2.0-rc.1`), tag manually with `git tag v0.2.0-rc.1 && git push --tags`. npm will mark the version with the `rc` dist-tag once published — adjust the workflow if you need a different tag strategy.
+
 ## License
 
 By contributing, you agree your changes will be licensed under the MIT

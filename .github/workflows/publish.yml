@@ -1,0 +1,83 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Run the full gate without publishing"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance attestation
+
+jobs:
+  publish:
+    name: publish (node 22)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          echo "tag=${TAG_VERSION} pkg=${PKG_VERSION}"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag $TAG_VERSION does not match package.json $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test with coverage thresholds
+        run: pnpm coverage
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify package exports
+        run: pnpm verify:exports
+
+      - name: Check bundle sizes
+        run: pnpm check:size
+
+      - name: Verify llms-full.txt is up to date
+        run: pnpm verify:llms
+
+      - name: Publish dry-run (audit tarball)
+        run: pnpm publish --dry-run --no-git-checks --access public
+
+      - name: Publish to npm
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
+        run: pnpm publish --no-git-checks --provenance --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish summary
+        if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          echo "### Published \`aifsmjs@${PKG_VERSION}\` to npm" >> $GITHUB_STEP_SUMMARY
+          echo "View on npmjs: <https://www.npmjs.com/package/aifsmjs/v/${PKG_VERSION}>" >> $GITHUB_STEP_SUMMARY
