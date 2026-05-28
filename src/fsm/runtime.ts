@@ -77,6 +77,11 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     dispose: new Set(),
   };
 
+  // Track detach functions for abort listeners we attach to external signals
+  // in on({ signal }). dispose() removes them so the external signal does not
+  // keep wrapped listeners alive past the runtime's lifetime.
+  const externalAbortCleanups = new Set<() => void>();
+
   function emit<K extends keyof RuntimeEventMap<Ctx, Evt, States>>(
     type: K,
     payload: RuntimeEventMap<Ctx, Evt, States>[K],
@@ -201,10 +206,24 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
       };
     }
     target.add(wrapped);
-    if (options?.signal) {
-      options.signal.addEventListener("abort", () => target.delete(wrapped), { once: true });
+    let detachAbort: (() => void) | undefined;
+    const signal = options?.signal;
+    if (signal) {
+      const onAbort = () => {
+        target.delete(wrapped);
+        if (detachAbort) externalAbortCleanups.delete(detachAbort);
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      detachAbort = () => signal.removeEventListener("abort", onAbort);
+      externalAbortCleanups.add(detachAbort);
     }
-    return () => target.delete(wrapped);
+    return () => {
+      target.delete(wrapped);
+      if (detachAbort) {
+        detachAbort();
+        externalAbortCleanups.delete(detachAbort);
+      }
+    };
   }
 
   function dispose(): void {
@@ -214,6 +233,8 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     listeners.clear();
     emit("dispose", undefined as RuntimeEventMap<Ctx, Evt, States>["dispose"]);
     for (const set of Object.values(eventListeners)) set.clear();
+    for (const cleanup of externalAbortCleanups) cleanup();
+    externalAbortCleanups.clear();
   }
 
   return {

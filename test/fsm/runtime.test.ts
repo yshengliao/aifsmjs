@@ -318,6 +318,24 @@ describe("runtime lifecycle — dispose / reset / signal", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
+  it("on({signal}) removes abort listener from external signal on dispose", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    const removeSpy = vi.spyOn(ac.signal, "removeEventListener");
+    runtime.on("transition", vi.fn(), { signal: ac.signal });
+    runtime.dispose();
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
+  it("on({signal}) unsubscribe also detaches the abort listener", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    const removeSpy = vi.spyOn(ac.signal, "removeEventListener");
+    const off = runtime.on("transition", vi.fn(), { signal: ac.signal });
+    off();
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+
   it("can() handles array-of-transitions states (yellow → fallback)", () => {
     const runtime = createRuntime(trafficLight, makeImpl());
     runtime.send({ type: "NEXT" }); // red → green
