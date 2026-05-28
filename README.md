@@ -6,9 +6,9 @@
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![繁體中文](https://img.shields.io/badge/lang-繁體中文-red.svg)](README_ZHTW.md)
 
-> A small, strict FSM library built for **web game development**. Lifecycle is a pure `step()` function. Chain-of-Responsibility intuition is reserved for cross-cutting concerns (observe / persist / replay), never for the transition core.
+> A small, strict FSM library for any TypeScript/JS app that needs deterministic, replayable state transitions. Lifecycle is a pure `step()` function. Chain-of-Responsibility intuition is reserved for cross-cutting concerns (observe / persist / replay), never for the transition core.
 
-**Primary audience**: developers building browser-based games and interactive web experiences on PixiJS / Svelte 5 / plain Canvas / WebGL. Typical use cases: scene flow (loading → menu → playing → result), character AI state, interactive UI flows, tutorial steps, turn-based logic. The library itself is **environment-neutral** (pure core + adapter boundary) — browser, Node, and Flutter WebView all work; games are simply the first-class use case.
+**Primary audience**: developers building stateful flows — multi-step forms, checkout funnels, auth flows, tutorial sequences, document-status workflows, scene flow in interactive apps, and the same patterns in browser-based games (PixiJS / Svelte 5 / plain Canvas / WebGL). The core is **environment-neutral** (pure function + adapter boundary): browser, Node, Bun, Deno, Flutter WebView, and Web Workers all work. The Roadmap section keeps gaming-specific niceties (tick hook, ECS bridge) as opt-in subpaths, not core surface.
 
 > Traditional Chinese version: [README_ZHTW.md](README_ZHTW.md).
 
@@ -107,7 +107,7 @@ The three layers are fully decoupled: take `step()` alone for replay, take `Mach
 | Will do (v1)                                        | Won't do                                          |
 | --------------------------------------------------- | ------------------------------------------------- |
 | Flat states + transitions                           | Hierarchical / compound states                    |
-| Guards (sync only)                                  | Async guards                                      |
+| Guards (sync only; inline async throws `InvalidDefinitionError` at `defineMachine`; runtime throws `AsyncGuardError` on thenable return) | Async guards                                      |
 | Actions (assign + enqueue effects)                  | Async API inside an action (use an effect)        |
 | Fire-and-forget effects                             | Actor invocation / spawn                          |
 | Read-only inspect middleware                        | Cancellable transition middleware                 |

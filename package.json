@@ -1,7 +1,7 @@
 {
   "name": "aifsmjs",
-  "version": "0.1.2",
-  "description": "Small, strict FSM library for web game development. Pure step() lifecycle, opt-in effects, inspect, replay, and a fast-check property-based testing adapter. Browser / Node / WebView friendly.",
+  "version": "0.2.0",
+  "description": "Small, strict FSM library for deterministic, replayable state machines in any TypeScript/JS app — multi-step forms, checkout funnels, auth flows, tutorials, scene flow. Pure step() lifecycle, opt-in effects, inspect, replay, and a fast-check property-based testing adapter. Browser / Node / Bun / Deno / WebView / Worker friendly.",
   "keywords": [
     "fsm",
     "state-machine",
@@ -88,10 +88,12 @@
     "verify:exports": "node scripts/verify-exports.mjs",
     "check:size": "node scripts/check-size.mjs",
     "build:llms": "node scripts/build-llms-full.mjs",
-    "verify:llms": "node scripts/build-llms-full.mjs && git diff --exit-code -- llms-full.txt",
+    "verify:llms": "node scripts/build-llms-full.mjs --check",
     "coverage": "vitest run --coverage",
     "example:traffic-light": "tsx examples/01-traffic-light/index.ts",
     "example:approval": "tsx examples/02-approval-workflow/index.ts",
+    "example:checkout-funnel": "tsx examples/03-checkout-funnel/index.ts",
+    "example:form-wizard": "tsx examples/04-form-wizard/index.ts",
     "prepublishOnly": "pnpm typecheck && pnpm lint && pnpm coverage && pnpm build && pnpm verify:exports && pnpm check:size"
   },
   "peerDependencies": {

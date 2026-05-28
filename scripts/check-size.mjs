@@ -11,14 +11,17 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const budgets = {
   // Core grew to ~3.3 KB after adding the EventTarget-style on(), can(), and
-  // snapshot() spec-aligned APIs in v0.1.1. Budget bumped to 3500 B with
-  // headroom for the next opt-in additions; tighten in v0.2 if room reclaimed.
-  "dist/index.js": 3_500,
+  // snapshot() spec-aligned APIs in v0.1.1. v0.2.0 adds AsyncGuardError runtime
+  // detection at evaluator.ts and the validateDefinition pass, costing ~120 B
+  // gzip on the core path. Replay shares the lifecycle import and inherits a
+  // ~90 B cost. Both budgets raised by ~150 B with safety margin; tighten when
+  // room is reclaimed (e.g., if the experimental relations code splits out).
+  "dist/index.js": 3_700,
   "dist/guards/index.js": 1_000,
   "dist/effects/index.js": 1_000,
   "dist/inspect/index.js": 1_000,
-  "dist/replay/index.js": 1_600,
-  "dist/pbt/index.js": 4_500,
+  "dist/replay/index.js": 1_800,
+  "dist/pbt/index.js": 4_600,
   "dist/timer/index.js": 1_000,
 };
 

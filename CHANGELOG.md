@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-28
+
+### Added
+
+- **Async-guard detection**: `evalGuard` and `defineMachine`'s validation pass now throw on async guards. TypeScript already prevents the typed case, but a JS caller or a cast could slip an async guard through and silently pass every check (a thenable is truthy). The new check fails loudly:
+  - **Definition time** (inline `async` guard) → `InvalidDefinitionError` from `defineMachine`'s `validateDefinition`.
+  - **Runtime** (string-ref or cast guard whose return value is thenable) → `AsyncGuardError` from `evalGuard`. The thenable check uses `typeof x?.then === "function"`, so cross-realm Promises (iframe / worker / vm) and user-defined PromiseLike values are also caught — not just same-realm `instanceof Promise`.
+  - New exports from `aifsmjs`: `AsyncGuardError`, `isAsyncGuardFn`.
+  - README's "Capabilities / Limitations" table updated to reflect the new runtime guarantee.
+
+### Fixed (correctness)
+
+- **`send()` transition payload AND `notify()` listeners are captured pre-reentry** ([src/fsm/runtime.ts](src/fsm/runtime.ts)): the `next` field of the emitted `'transition'` event, the effect dispatch context, and the snapshot delivered to `subscribe()` listeners are all now read from a captured local `committed` snapshot rather than the outer mutable `snapshot` variable. Closes a race where a reentrant `send()` inside an effect handler or subscriber would race ahead and the outer payload / later subscribers in the same notify pass would end up pointing at the reentry's snapshot.
+- **`evalGuard` falls back to `<inline>` for anonymous-arrow guards** ([src/fsm/evaluator.ts](src/fsm/evaluator.ts)): switched `??` to `||` so an empty `Function.prototype.name` falls back instead of producing `guard "" must be sync;`.
+- **README + README_ZHTW + llms-full.txt** now describe the two error paths separately (`InvalidDefinitionError` at definition time vs `AsyncGuardError` at runtime) instead of conflating them.
+
+### Changed (positioning + meta)
+
+- **`package.json#description`** rewritten from «for web game development» to lead with the broader use case set (multi-step forms, checkout funnels, auth flows, tutorials, scene flow). The README's "Primary audience" paragraph already moved away from game-only framing in v0.2.0; the package metadata now matches.
+
+### Build & tooling
+
+- **`verify:llms` is now build-agnostic** ([scripts/build-llms-full.mjs](scripts/build-llms-full.mjs)): the script accepts `--check` which builds the file in memory and compares against disk, exit 1 on diff. The previous form used `git diff --exit-code -- llms-full.txt` after running the build, which failed any time the working tree had uncommitted changes (not just llms-full.txt drift). The new form works identically pre-commit and in CI.
+- **Per-subpath gzip budgets raised** ([scripts/check-size.mjs](scripts/check-size.mjs)): core 3500 → 3700 B and replay 1600 → 1800 B to absorb the AsyncGuardError + thenable detection cost; pbt 4500 → 4600 B for a small symbol additions. All entries still tracked at ≥95% headroom.
+
+### Added (examples)
+
+- `examples/03-checkout-funnel` — e-commerce checkout funnel with guarded staging, payment / analytics effects, and a `replay()` round-trip. Demonstrates that aifsmjs models classic web UX flows with no canvas / game loop involvement.
+- `examples/04-form-wizard` — multi-step form wizard with back / next / jump-to-step navigation, per-step validation, and draft persistence via the `persist` middleware.
+
+### Changed (positioning)
+
+- `README.md` and `README_ZHTW.md`'s "Primary audience" paragraph now leads with stateful web flows (multi-step forms, checkout funnels, auth flows, tutorials, document workflows) and frames games as one application of the same pattern. The core remains environment-neutral; the only opt-in dependency is `fast-check` for the `aifsmjs/pbt` PBT adapter.
+
+### Compatibility
+
+This release is **non-breaking at runtime** for users who already wrote sync guards. Async guards previously slipped through and silently passed; they now throw. If you relied on this accidental behaviour, move the async work into an effect (`enq.effect(...)`) and dispatch a follow-up event when the work completes — the pattern is documented in the README's "Common pitfalls" table.
+
 ## [0.1.2] — 2026-05-28
 
 ### Fixed

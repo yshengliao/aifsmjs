@@ -277,6 +277,35 @@ describe("runtime lifecycle — dispose / reset / signal", () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
+  it("on('transition') payload is captured pre-reentry (outer.next does not show inner's mutation)", () => {
+    // Regression: send() used to use the mutable outer `snapshot` variable for
+    // the transition payload's `next`. If an effect handler synchronously
+    // calls send() again, the inner reassignment of `snapshot` would race
+    // ahead and the outer payload's `next.value` would point at the inner
+    // state instead of the state that paired with the outer event.
+    const events: string[] = [];
+    const runtime = createRuntime(trafficLight, {
+      actions: makeImpl().actions,
+      effects: {
+        // The "green" entry produces no effect by default; we splice in a
+        // reentry by listening to transitions and re-sending.
+      },
+    });
+    let reenterOnce = true;
+    runtime.on("transition", (e) => {
+      events.push(`${e.prev.value}->${e.next.value}`);
+      if (e.prev.value === "red" && reenterOnce) {
+        reenterOnce = false;
+        runtime.send({ type: "NEXT" }); // green -> yellow inside red->green emit
+      }
+    });
+    runtime.send({ type: "NEXT" });
+    // Order: outer emits red->green; inside that handler, inner send triggers
+    // green->yellow which emits green->yellow synchronously. Both payloads
+    // must reference their own outcomes, not be reordered or aliased.
+    expect(events).toEqual(["red->green", "green->yellow"]);
+  });
+
   it("on('dispose') fires once when runtime is disposed", () => {
     const runtime = createRuntime(trafficLight, makeImpl());
     const fn = vi.fn();

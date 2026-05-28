@@ -74,6 +74,25 @@ describe("defineMachine", () => {
       }),
     ).toThrow(InvalidDefinitionError);
   });
+
+  it("throws when an inline guard is declared async", () => {
+    expect(() =>
+      defineMachine({
+        id: "m",
+        initial: "a",
+        context: {},
+        states: {
+          a: {
+            on: {
+              // biome-ignore lint/suspicious/noExplicitAny: deliberate misuse to verify the guard check
+              GO: { target: "b", guard: (async () => true) as any },
+            },
+          },
+          b: {},
+        },
+      }),
+    ).toThrow(/async guard/);
+  });
 });
 
 describe("initialSnapshot", () => {

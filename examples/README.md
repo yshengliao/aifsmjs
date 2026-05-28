@@ -8,16 +8,20 @@ package).
 
 ```bash
 pnpm install
-pnpm example:traffic-light   # 01-traffic-light
-pnpm example:approval        # 02-approval-workflow
+pnpm example:traffic-light    # 01-traffic-light
+pnpm example:approval         # 02-approval-workflow
+pnpm example:checkout-funnel  # 03-checkout-funnel
+pnpm example:form-wizard      # 04-form-wizard
 ```
 
 ## Index
 
-| # | Example | What it shows | Maps to a web-game pattern |
+| # | Example | What it shows | Real-world pattern |
 |---|---|---|---|
-| 01 | [traffic-light](01-traffic-light/index.ts) | Minimal `setup → defineMachine → createRuntime → send` loop with `assign` and a snapshot subscriber. | Cyclic scene flow (loading → menu → playing → result → loading) |
-| 02 | [approval-workflow](02-approval-workflow/index.ts) | Multi-candidate guarded transitions (`and([...])`), effects + handlers, `persist` + `recorder` middleware, and `replay()` to reproduce the final snapshot. | Turn-based logic with branching outcomes + post-mortem replay |
+| 01 | [traffic-light](01-traffic-light/index.ts) | Minimal `setup → defineMachine → createRuntime → send` loop with `assign` and a snapshot subscriber. | Cyclic scene flow (loading → menu → playing → result → loading) — or any 3-state cycle. |
+| 02 | [approval-workflow](02-approval-workflow/index.ts) | Multi-candidate guarded transitions (`and([...])`), effects + handlers, `persist` + `recorder` middleware, and `replay()` to reproduce the final snapshot. | Document approval, ticket triage, turn-based games with branching outcomes + post-mortem replay. |
+| 03 | [checkout-funnel](03-checkout-funnel/index.ts) | E-commerce checkout: cart → shipping → payment → review → confirmed. Per-stage validation as guards, payment + analytics as effects, full replay of the funnel. | Plain web app — no canvas, no game loop. Demonstrates that aifsmjs models classic UX funnels. |
+| 04 | [form-wizard](04-form-wizard/index.ts) | Multi-step form wizard with back / next / jump-to-step navigation. Per-step validation, draft persistence via the `persist` middleware. | Account onboarding, settings editor, multi-page survey. |
 
 ## Notes
 

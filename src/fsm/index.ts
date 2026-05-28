@@ -32,6 +32,12 @@ export {
 export { step, UnknownActionError } from "./lifecycle.js";
 export { createRuntime, RuntimeDisposedError } from "./runtime.js";
 export { assign, mergeContext } from "./updater.js";
-export { evalGuard, resolveGuard, UnknownGuardError } from "./evaluator.js";
+export {
+  AsyncGuardError,
+  evalGuard,
+  isAsyncGuardFn,
+  resolveGuard,
+  UnknownGuardError,
+} from "./evaluator.js";
 export { resolveTransitions } from "./resolver.js";
 export { createSnapshot, deepFreeze, freezeSnapshot } from "./snapshot.js";

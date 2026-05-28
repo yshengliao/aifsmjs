@@ -6,9 +6,9 @@
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README.md)
 
-> 一個小而嚴格的 FSM library，為**網頁遊戲開發**而生：把 lifecycle 寫成 pure `step()`，把 Chain-of-Responsibility 直覺收斂到 cross-cutting concerns（observe / persist / replay）—— 而非 transition 主流程。
+> 一個小而嚴格的 FSM library，為任何需要可重現、可重播狀態流轉的 TypeScript/JS app 而生：把 lifecycle 寫成 pure `step()`，把 Chain-of-Responsibility 直覺收斂到 cross-cutting concerns（observe / persist / replay）── 而非 transition 主流程。
 
-**主要受眾**：用 PixiJS / Svelte 5 / 純 Canvas / WebGL 做網頁小遊戲、休閒遊戲、互動式網頁的開發者。場景例如：場景流轉（loading → menu → playing → result）、角色 AI 狀態、互動 UI 流程、教學引導步驟、回合制邏輯。Library 本身**環境中立**（pure core + adapter 邊界），browser、Node、Flutter WebView 都能跑；遊戲只是首要 use case。
+**主要受眾**：所有處理 stateful flow 的工程師 ── 多步驟表單、checkout 流程、auth flow、教學引導步驟、文件審批狀態機、互動 app 的 scene flow，以及瀏覽器遊戲的相同模式（PixiJS / Svelte 5 / 純 Canvas / WebGL）。Library 本身**環境中立**（pure core + adapter 邊界）：browser、Node、Bun、Deno、Flutter WebView、Web Worker 全部都跑。Roadmap 段把遊戲特有的便利功能（tick hook、ECS bridge）保留為 opt-in subpath，不進 core surface。
 
 ---
 
@@ -104,7 +104,7 @@ console.log(runtime.getSnapshot().context); // { ticks: 1 }
 | 會做（v1）                                          | 不會做                                            |
 | --------------------------------------------------- | ------------------------------------------------- |
 | Flat states + transitions                           | Hierarchical / compound states                    |
-| Guards（sync only）                                 | Async guards                                      |
+| Guards（sync only；inline async 在 `defineMachine` 時丟 `InvalidDefinitionError`；runtime 偵測到 thenable 回傳則丟 `AsyncGuardError`） | Async guards                                      |
 | Actions（assign + enqueue effects）                 | 在 action 內呼叫 async API（請放到 effect）        |
 | Fire-and-forget effects                             | Actor invocation / spawn                          |
 | Read-only inspect middleware                        | 可中止 transition 的 middleware                   |

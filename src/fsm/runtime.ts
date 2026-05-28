@@ -89,8 +89,12 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     for (const fn of eventListeners[type]) fn(payload);
   }
 
-  function notify() {
-    for (const l of listeners) l(snapshot);
+  function notify(committed?: Snapshot<Ctx, States>) {
+    // Capture the snapshot value FIRST so a subscriber that synchronously
+    // calls `send()` and reassigns the outer `snapshot` cannot bleed into
+    // the value other subscribers see in the same notify() pass.
+    const captured = committed ?? snapshot;
+    for (const l of listeners) l(captured);
   }
 
   function runMiddleware(
@@ -132,18 +136,24 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     const prev = snapshot;
     const result = step(def, prev, event, impl);
     snapshot = result.snapshot;
+    // Capture this transition's outcome BEFORE any user-controlled callback
+    // runs. Effect handlers and subscribers may synchronously call `send()`
+    // again, which would reassign the outer `snapshot` variable; without this
+    // capture, the transition payload below could end up pointing at a later
+    // reentrant snapshot instead of the snapshot that pairs with `event`.
+    const committed = result.snapshot;
 
     runMiddleware(prev, event, result.effects, result.changed);
 
     if (shouldDispatch) {
-      dispatchEffects(result.effects, snapshot.context, event);
+      dispatchEffects(result.effects, committed.context, event);
     }
 
     if (result.changed) {
-      notify();
+      notify(committed);
       const payload: RuntimeTransitionEvent<Ctx, Evt, States> = {
         prev,
-        next: snapshot,
+        next: committed,
         event,
         effects: result.effects,
         changed: true,

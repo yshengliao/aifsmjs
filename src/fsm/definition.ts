@@ -1,3 +1,4 @@
+import { isAsyncGuardFn } from "./evaluator.js";
 import { createRuntime } from "./runtime.js";
 import { freezeSnapshot } from "./snapshot.js";
 import type {
@@ -46,6 +47,11 @@ function validateDefinition<Ctx, Evt extends { type: string }, States extends st
         if (t.target !== undefined && !stateKeys.includes(t.target)) {
           throw new InvalidDefinitionError(
             `transition ${stateName} -[${evtType}]-> "${String(t.target)}" targets an unknown state`,
+          );
+        }
+        if (t.guard !== undefined && isAsyncGuardFn(t.guard)) {
+          throw new InvalidDefinitionError(
+            `transition ${stateName} -[${evtType}]-> uses an async guard. Guards must be sync; move I/O into an effect.`,
           );
         }
       }
