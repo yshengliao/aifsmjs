@@ -1,6 +1,6 @@
 {
   "name": "aifsmjs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Small, strict FSM library for web game development. Pure step() lifecycle, opt-in effects, inspect, replay, and a fast-check property-based testing adapter. Browser / Node / WebView friendly.",
   "keywords": [
     "fsm",

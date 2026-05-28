@@ -510,6 +510,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-05-28
+
+### Changed
+
+- **Release pipeline**: switched to npm OIDC trusted publisher. Releases
+  now ship with provenance attestation generated from the GitHub Action
+  via `id-token: write` + `--provenance`; no long-lived `NPM_TOKEN`
+  needed. The `Publish to npm` workflow is unchanged from v0.1.0; see
+  CONTRIBUTING for the `pnpm version patch && git push --follow-tags`
+  flow.
+
+No code changes vs v0.1.0; runtime behaviour, API surface, and bundle
+sizes are identical (core gzip 3.30 KB / 3.5 KB budget).
+
 ## [0.1.0] — 2026-05-28
 
 Initial public release.
