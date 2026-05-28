@@ -420,6 +420,8 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 
 - **Example tests** (vitest): for every src module, write happy path + edge + error-message triplets.
 - **PBT smoke**: each generic property runs 50 iterations as an invariant guard, not as a coverage source.
+- **CI-enforced thresholds**: `@vitest/coverage-v8` is wired to **100% statements / 100% lines / 100% functions / ≥90% branches**. The few defensive invariant-guard branches (e.g. runtime determinism mismatch) carry `/* v8 ignore */` annotations with rationale.
+- **Size budget**: `scripts/check-size.mjs` enforces per-subpath gzip caps in CI — core ≤3 KB, replay ≤1.6 KB, pbt ≤4.5 KB, others ≤1 KB. Exceeding any cap fails the build.
 
 ### The 6 built-in generic properties
 

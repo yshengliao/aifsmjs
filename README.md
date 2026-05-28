@@ -417,6 +417,8 @@ aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle 
 
 - **Example tests**（vitest）：對每個 src module 寫 happy path + 邊界 + error message 三類。
 - **PBT smoke**：每條 generic property 跑 50 runs，作為 invariant guard，不追求 coverage。
+- **CI 強制門檻**：`@vitest/coverage-v8` 設 **100% statements / 100% lines / 100% functions / ≥90% branches**。少數 defensive invariant-guard 分支（例如 runtime determinism mismatch）標 `/* v8 ignore */` 並寫明原因。
+- **Size budget**：`scripts/check-size.mjs` 在 CI 檢查每個 subpath gzip 大小，超過預算（core ≤3 KB、replay ≤1.6 KB、pbt ≤4.5 KB、其他 ≤1 KB）即 fail。
 
 ### 內建的 6 條 generic properties
 

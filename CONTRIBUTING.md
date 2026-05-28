@@ -8,15 +8,18 @@ that expand it.
 
 ```bash
 pnpm install
-pnpm test            # vitest, 94 example tests + PBT smoke runs
+pnpm test            # vitest, ~117 example tests + PBT smoke runs
+pnpm coverage        # vitest with 100/100/100/90 thresholds (CI-enforced)
 pnpm typecheck       # tsc --noEmit on strict mode
 pnpm lint            # biome check
 pnpm build           # tsup; dual ESM/CJS + .d.ts
 pnpm verify:exports  # ensures package.json#exports matches dist/
+pnpm check:size      # gzip per subpath against the size budget
 ```
 
-The full pre-publish gate is `pnpm prepublishOnly`, which runs all of the
-above in order.
+The full pre-publish gate is `pnpm prepublishOnly`, which runs typecheck,
+lint, coverage (with thresholds), build, exports verification, and size
+budget check — in that order.
 
 ## What gets in easily
 
