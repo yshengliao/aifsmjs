@@ -1,6 +1,7 @@
 # aifsmjs
 
 [![npm version](https://img.shields.io/npm/v/aifsmjs.svg)](https://www.npmjs.com/package/aifsmjs)
+[![CI](https://github.com/yshengliao/aifsmjs/actions/workflows/ci.yml/badge.svg)](https://github.com/yshengliao/aifsmjs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README.en.md)
@@ -18,7 +19,7 @@
 - **Definition 純資料**：guards / actions / effects 用 string ref 引用，runtime 才注入實作。可序列化、可在 Web Worker 之間傳遞、可存 DB。
 - **PBT first-class**：內建 `fast-check` `fc.commands` adapter 與 6 條 generic property tests，市場目前沒有同類產品做這件事。
 
-對應到既有生態：思路接近 Robot3 的 functional composition + XState v5 的 `and/or/not` guard 組合子 + `@xstate/store` v3 的 `enq.effect()` 雙軌副作用，但刻意保持 < 2KB gzip 的 core size。
+對應到既有生態：思路接近 Robot3 的 functional composition + XState v5 的 `and/or/not` guard 組合子 + `@xstate/store` v3 的 `enq.effect()` 雙軌副作用，core 實測 ~2.5KB ESM gzipped（v0.1.0），每個 opt-in subpath 獨立可 tree-shake。
 
 ---
 
@@ -29,10 +30,13 @@ pnpm add aifsmjs
 ```
 
 ```typescript
-import { defineMachine, createRuntime, assign } from "aifsmjs";
+import { setup, createRuntime, assign } from "aifsmjs";
 
-// 1. Definition 是純資料
-const trafficLight = defineMachine({
+type Ctx = { ticks: number };
+type Evt = { type: "NEXT" };
+
+// 1. Definition 是純資料；setup<Ctx, Evt>() 後 States 由 states keys 自動推導
+const trafficLight = setup<Ctx, Evt>().defineMachine({
   id: "trafficLight",
   initial: "red",
   context: { ticks: 0 },
@@ -55,6 +59,8 @@ runtime.send({ type: "NEXT" });
 console.log(runtime.getSnapshot().value);   // "green"
 console.log(runtime.getSnapshot().context); // { ticks: 1 }
 ```
+
+> 也可以用 `defineMachine<Ctx, Evt, States>({...})` 直接傳三個型別參數（escape hatch；當你需要對 union event types 完全顯式控制時）。一般情況下 `setup().defineMachine()` 更省事。
 
 ---
 
@@ -263,6 +269,8 @@ const finalSnap = replay(initialSnapshot, eventLog, def, impl);
 
 ### `aifsmjs/pbt` — fast-check adapter
 
+> **需另裝 peer**：`pnpm add -D fast-check`（^3.20.0）。aifsmjs 把 fast-check 列為 optional peer dependency，使用 pbt 模組才需安裝。
+
 ```typescript
 import fc from "fast-check";
 import { commandsFromMachine, properties } from "aifsmjs/pbt";
@@ -278,6 +286,31 @@ fc.assert(
 ```
 
 `properties.*` 提供 6 條 generic property（見 [Testing Strategy](#testing-strategy)）。fast-check 是 `peerDependenciesMeta.optional`，不裝就不用付。
+
+### `aifsmjs/timer` — Cancellable delayed callbacks
+
+```typescript
+import { after, createScheduler } from "aifsmjs/timer";
+
+// One-shot
+const handle = after(5000, () => runtime.send({ type: "TIMEOUT" }));
+handle.cancel(); // 還沒燒到的話，取消
+
+// 與 AbortSignal 整合
+const ac = new AbortController();
+after(5000, () => runtime.send({ type: "TIMEOUT" }), { signal: ac.signal });
+ac.abort(); // 同樣取消
+
+// Scheduler：把一群 timers 綁在一起，destroy 時 cancelAll
+const sched = createScheduler();
+sched.after(1000, () => {});
+sched.after(2000, () => {});
+sched.cancelAll();
+```
+
+- 純包 `setTimeout` / `clearTimeout`，可注入測試替身（vitest fake timers 已驗證）
+- AbortSignal listener 用 `{ once: true }` 註冊，避免 leak
+- 與 FSM 本體解耦：你自己決定何時把 timer 燒出的事件 `runtime.send(...)`
 
 ---
 
@@ -372,7 +405,7 @@ fc.assert(
 
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
-| Core size (gzip)           | < 2KB target   | ~15KB             | ~1KB              | < 1KB             | per-component     |
+| Core size (gzip)           | ~2.5KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
 | Hierarchical states         | ❌ (v1)         | ✅                 | ❌                 | N/A               | ✅                 |
 | Async invoke / actor        | ❌              | ✅                 | ❌                 | N/A               | ❌                 |
 | Guard combinators           | ✅ and/or/not   | ✅ and/or/not      | ❌                 | N/A               | ❌                 |

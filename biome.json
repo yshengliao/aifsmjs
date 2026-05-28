@@ -44,5 +44,17 @@
     "formatter": {
       "indentWidth": 2
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["test/timer/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noDuplicateTestHooks": "off"
+          }
+        }
+      }
+    }
+  ]
 }

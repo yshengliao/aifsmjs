@@ -58,6 +58,11 @@
       "types": "./dist/pbt/index.d.ts",
       "import": "./dist/pbt/index.js",
       "require": "./dist/pbt/index.cjs"
+    },
+    "./timer": {
+      "types": "./dist/timer/index.d.ts",
+      "import": "./dist/timer/index.js",
+      "require": "./dist/timer/index.cjs"
     }
   },
   "files": [
@@ -74,6 +79,8 @@
     "format": "biome format --write src test",
     "typecheck": "tsc --noEmit",
     "verify:exports": "node scripts/verify-exports.mjs",
+    "example:traffic-light": "tsx examples/01-traffic-light/index.ts",
+    "example:approval": "tsx examples/02-approval-workflow/index.ts",
     "prepublishOnly": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm verify:exports"
   },
   "peerDependencies": {
@@ -89,12 +96,14 @@
     "@types/node": "^22.0.0",
     "fast-check": "^3.20.0",
     "tsup": "^8.3.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
+  "packageManager": "pnpm@9.12.3",
   "publishConfig": {
     "access": "public"
   }

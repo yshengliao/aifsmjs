@@ -1,6 +1,7 @@
 # aifsmjs
 
 [![npm version](https://img.shields.io/npm/v/aifsmjs.svg)](https://www.npmjs.com/package/aifsmjs)
+[![CI](https://github.com/yshengliao/aifsmjs/actions/workflows/ci.yml/badge.svg)](https://github.com/yshengliao/aifsmjs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![繁體中文](https://img.shields.io/badge/lang-繁體中文-red.svg)](README.md)
@@ -20,7 +21,7 @@ Developers coming from C# Chain-of-Responsibility instinctively wrap FSM lifecyc
 - **Definition is plain data**: guards / actions / effects are referenced by string; implementations are injected only at runtime. Serializable, transferable across Web Workers, persistable to a database.
 - **PBT is first-class**: built-in `fast-check` `fc.commands` adapter plus 6 generic property tests. No comparable library currently ships this.
 
-In ecosystem terms: closer to Robot3's functional composition + XState v5's `and/or/not` guard combinators + `@xstate/store` v3's `enq.effect()` dual-track side effects, while deliberately keeping the core under 2KB gzipped.
+In ecosystem terms: closer to Robot3's functional composition + XState v5's `and/or/not` guard combinators + `@xstate/store` v3's `enq.effect()` dual-track side effects. The core measures ~2.5KB ESM gzipped (v0.1.0); every opt-in subpath is independently tree-shakeable.
 
 ---
 
@@ -31,10 +32,14 @@ pnpm add aifsmjs
 ```
 
 ```typescript
-import { defineMachine, createRuntime, assign } from "aifsmjs";
+import { setup, createRuntime, assign } from "aifsmjs";
 
-// 1. Definition is plain data
-const trafficLight = defineMachine({
+type Ctx = { ticks: number };
+type Evt = { type: "NEXT" };
+
+// 1. Definition is plain data; setup<Ctx, Evt>() lets States be inferred from
+//    the keys of `states`, so you don't have to repeat them.
+const trafficLight = setup<Ctx, Evt>().defineMachine({
   id: "trafficLight",
   initial: "red",
   context: { ticks: 0 },
@@ -57,6 +62,8 @@ runtime.send({ type: "NEXT" });
 console.log(runtime.getSnapshot().value);   // "green"
 console.log(runtime.getSnapshot().context); // { ticks: 1 }
 ```
+
+> The bare `defineMachine<Ctx, Evt, States>({...})` form is still available as an escape hatch when you need explicit control over union event types. In normal cases prefer `setup().defineMachine()`.
 
 ---
 
@@ -265,6 +272,8 @@ Never dispatches effects. For PBT, time-travel debugging, and incident reproduct
 
 ### `aifsmjs/pbt` — fast-check adapter
 
+> **Install the peer**: `pnpm add -D fast-check` (^3.20.0). aifsmjs lists fast-check as an optional peer; you only need it when importing this subpath.
+
 ```typescript
 import fc from "fast-check";
 import { commandsFromMachine, properties } from "aifsmjs/pbt";
@@ -280,6 +289,31 @@ fc.assert(
 ```
 
 `properties.*` ships 6 generic properties (see [Testing Strategy](#testing-strategy)). `fast-check` is `peerDependenciesMeta.optional`; no install penalty if you don't use it.
+
+### `aifsmjs/timer` — Cancellable delayed callbacks
+
+```typescript
+import { after, createScheduler } from "aifsmjs/timer";
+
+// One-shot
+const handle = after(5000, () => runtime.send({ type: "TIMEOUT" }));
+handle.cancel(); // cancels if not yet fired
+
+// AbortSignal integration
+const ac = new AbortController();
+after(5000, () => runtime.send({ type: "TIMEOUT" }), { signal: ac.signal });
+ac.abort(); // also cancels
+
+// Scheduler: bundle a group of timers and cancel them together on teardown
+const sched = createScheduler();
+sched.after(1000, () => {});
+sched.after(2000, () => {});
+sched.cancelAll();
+```
+
+- Thin wrapper over `setTimeout` / `clearTimeout`, with injectable timer functions (validated by vitest fake timers)
+- AbortSignal listener registered with `{ once: true }` to avoid leaks
+- Decoupled from the FSM core: you decide when to forward a fired timer as `runtime.send(...)`
 
 ---
 
@@ -374,7 +408,7 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
-| Core size (gzip)           | < 2KB target   | ~15KB             | ~1KB              | < 1KB             | per-component     |
+| Core size (gzip)           | ~2.5KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
 | Hierarchical states         | ❌ (v1)         | ✅                 | ❌                 | N/A               | ✅                 |
 | Async invoke / actor        | ❌              | ✅                 | ❌                 | N/A               | ❌                 |
 | Guard combinators           | ✅ and/or/not   | ✅ and/or/not      | ❌                 | N/A               | ❌                 |

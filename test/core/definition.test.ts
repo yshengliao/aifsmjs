@@ -3,7 +3,10 @@ import {
   InvalidDefinitionError,
   defineMachine,
   initialSnapshot,
+  setup,
 } from "../../src/core/definition.js";
+import { createRuntime } from "../../src/core/runtime.js";
+import { assign } from "../../src/core/updater.js";
 
 describe("defineMachine", () => {
   it("returns the same definition object", () => {
@@ -94,5 +97,66 @@ describe("initialSnapshot", () => {
       states: { done: { final: true } },
     });
     expect(initialSnapshot(def).status).toBe("final");
+  });
+});
+
+describe("setup() — curried builder with inferred States", () => {
+  it("infers States from keyof states (no explicit generics needed)", () => {
+    type Ctx = { n: number };
+    type Evt = { type: "INC" } | { type: "RESET" };
+    const machine = setup<Ctx, Evt>().defineMachine({
+      id: "counter",
+      initial: "idle",
+      context: { n: 0 },
+      states: {
+        idle: {
+          on: {
+            INC: { target: "ticking", actions: ["bump"] },
+          },
+        },
+        ticking: {
+          on: {
+            INC: { target: "ticking", actions: ["bump"] },
+            RESET: { target: "idle", actions: ["zero"] },
+          },
+        },
+      },
+    });
+    expect(machine.initial).toBe("idle");
+    expect(Object.keys(machine.states)).toEqual(["idle", "ticking"]);
+  });
+
+  it("works end-to-end through createRuntime", () => {
+    type Ctx = { n: number };
+    type Evt = { type: "INC" };
+    const machine = setup<Ctx, Evt>().defineMachine({
+      id: "c",
+      initial: "a",
+      context: { n: 0 },
+      states: {
+        a: { on: { INC: { target: "b", actions: ["bump"] } } },
+        b: {},
+      },
+    });
+    const runtime = createRuntime(machine, {
+      actions: { bump: assign(({ context }) => ({ n: context.n + 1 })) },
+    });
+    runtime.send({ type: "INC" });
+    expect(runtime.getSnapshot().value).toBe("b");
+    expect(runtime.getSnapshot().context.n).toBe(1);
+  });
+
+  it("still validates: rejects initial outside states", () => {
+    type Ctx = Record<string, never>;
+    type Evt = { type: "X" };
+    expect(() =>
+      setup<Ctx, Evt>().defineMachine({
+        id: "m",
+        // @ts-expect-error initial not in states keys
+        initial: "ghost",
+        context: {},
+        states: { a: {} },
+      }),
+    ).toThrow(/not declared/);
   });
 });

@@ -1,5 +1,5 @@
 import { freezeSnapshot } from "./snapshot.js";
-import type { MachineDef, Snapshot } from "./types.js";
+import type { MachineDef, Snapshot, StateDef } from "./types.js";
 
 export class InvalidDefinitionError extends Error {
   constructor(message: string) {
@@ -8,16 +8,9 @@ export class InvalidDefinitionError extends Error {
   }
 }
 
-/**
- * Validate a machine definition shape and return it. The returned object is
- * the same reference (typed as Readonly); no cloning happens.
- *
- * Validation is intentionally shallow: it catches structural mistakes that
- * would otherwise blow up at runtime with cryptic errors.
- */
-export function defineMachine<Ctx, Evt extends { type: string }, States extends string>(
+function validateDefinition<Ctx, Evt extends { type: string }, States extends string>(
   def: MachineDef<Ctx, Evt, States>,
-): MachineDef<Ctx, Evt, States> {
+): void {
   if (!def.id || typeof def.id !== "string") {
     throw new InvalidDefinitionError("definition must have a non-empty string `id`");
   }
@@ -33,7 +26,6 @@ export function defineMachine<Ctx, Evt extends { type: string }, States extends 
       `\`initial\` "${String(def.initial)}" is not declared in states (${stateKeys.join(", ")})`,
     );
   }
-  // Validate that every transition target points to a declared state.
   for (const [stateName, stateDef] of Object.entries(def.states) as [
     States,
     (typeof def.states)[States],
@@ -50,7 +42,61 @@ export function defineMachine<Ctx, Evt extends { type: string }, States extends 
       }
     }
   }
+}
+
+/**
+ * Validate a machine definition shape and return it. Same reference is
+ * returned; no cloning happens. Validation is intentionally shallow.
+ *
+ * Two call forms:
+ *
+ *   defineMachine<Ctx, Evt, States>({ ... })
+ *     Explicit generics. Use when you need full control (e.g. union event
+ *     types). Required because TypeScript cannot otherwise infer `Evt`.
+ *
+ *   setup<Ctx, Evt>().defineMachine({ ... })
+ *     Curried form. Lets `States` be inferred from `keyof states`, so you
+ *     can omit it. Recommended for typical usage.
+ */
+export function defineMachine<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+): MachineDef<Ctx, Evt, States> {
+  validateDefinition(def);
   return def;
+}
+
+/**
+ * Curried builder so `States` can be inferred from `keyof states` without
+ * `initial` collapsing it to a single literal. Pass `Ctx` and `Evt` as the
+ * type arguments; pass the def to the returned `defineMachine`.
+ *
+ *   const machine = setup<MyCtx, MyEvt>().defineMachine({
+ *     id: "m",
+ *     initial: "a",
+ *     context: { ... },
+ *     states: { a: {...}, b: {...} },  // States inferred as "a" | "b"
+ *   });
+ */
+export function setup<Ctx, Evt extends { type: string }>(): {
+  defineMachine: <const States extends string>(def: {
+    readonly id: string;
+    readonly initial: NoInfer<States>;
+    readonly context: Ctx;
+    readonly states: Readonly<Record<States, StateDef<Ctx, Evt, States>>>;
+  }) => MachineDef<Ctx, Evt, States>;
+} {
+  return {
+    defineMachine: <const States extends string>(def: {
+      readonly id: string;
+      readonly initial: NoInfer<States>;
+      readonly context: Ctx;
+      readonly states: Readonly<Record<States, StateDef<Ctx, Evt, States>>>;
+    }) => {
+      const cast = def as unknown as MachineDef<Ctx, Evt, States>;
+      validateDefinition(cast);
+      return cast;
+    },
+  };
 }
 
 /**

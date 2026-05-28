@@ -8,6 +8,7 @@ export default defineConfig({
     "inspect/index": "src/inspect/index.ts",
     "replay/index": "src/replay/index.ts",
     "pbt/index": "src/pbt/index.ts",
+    "timer/index": "src/timer/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

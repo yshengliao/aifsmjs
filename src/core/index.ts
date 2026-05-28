@@ -19,7 +19,7 @@ export type {
   TransitionDef,
 } from "./types.js";
 
-export { defineMachine, initialSnapshot, InvalidDefinitionError } from "./definition.js";
+export { defineMachine, initialSnapshot, InvalidDefinitionError, setup } from "./definition.js";
 export { step, UnknownActionError } from "./lifecycle.js";
 export { createRuntime } from "./runtime.js";
 export { assign, mergeContext, createEnqueuer } from "./updater.js";
