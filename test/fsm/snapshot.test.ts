@@ -22,4 +22,17 @@ describe("snapshot helpers", () => {
     const parsed = JSON.parse(json);
     expect(parsed).toEqual({ value: "red", context: { ticks: 0 }, status: "active" });
   });
+
+  it("deepFreeze short-circuits on primitives and frozen values", () => {
+    expect(deepFreeze(null)).toBeNull();
+    expect(deepFreeze(undefined)).toBeUndefined();
+    expect(deepFreeze(42)).toBe(42);
+    const already = Object.freeze({ a: 1 });
+    expect(deepFreeze(already)).toBe(already);
+  });
+
+  it("createSnapshot honours explicit status='final'", () => {
+    const s = createSnapshot({ value: "done", context: {}, status: "final" });
+    expect(s.status).toBe("final");
+  });
 });

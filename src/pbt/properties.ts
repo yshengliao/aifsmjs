@@ -88,6 +88,7 @@ export function reachableStatesSubsetDeclared<
       const model: FsmModel<Ctx, States> = initialModel(def);
       fc.modelRun(() => ({ model, real }), cmds);
       for (const s of model.reached as Set<string>) {
+        /* v8 ignore next — property failure branch; an unreachable state would indicate a bug. */
         if (!declared.has(s)) return false;
       }
       return declared.has(real.getSnapshot().value);
@@ -176,6 +177,7 @@ export function assignDoesNotMutate<Ctx, Evt extends { type: string }, States ex
   // Quick sanity guard: mergeContext is the only context mutator used by step.
   const dummy = { a: 1, b: 2 };
   const merged = mergeContext(dummy, { b: 3 });
+  /* v8 ignore next — invariant guard; mergeContext returning the same ref would mean unit tests have already broken. */
   if (merged === dummy) throw new Error("aifsmjs/pbt: mergeContext returned the same reference");
 
   fc.assert(
@@ -186,6 +188,7 @@ export function assignDoesNotMutate<Ctx, Evt extends { type: string }, States ex
         for (const e of events) {
           const beforeCtxSerialised = JSON.stringify(snap.context);
           step(def, snap, e, impl);
+          /* v8 ignore next — property failure branch; step() mutating snap.context would indicate a bug. */
           if (JSON.stringify(snap.context) !== beforeCtxSerialised) return false;
           // Continue with the actual result for subsequent events
           snap = step(def, snap, e, impl).snapshot;

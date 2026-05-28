@@ -86,6 +86,18 @@ describe("createRuntime", () => {
     expect(calls).toEqual(["a-before", "b-before", "b-after", "a-after"]);
   });
 
+  it("middleware calling next() twice throws", () => {
+    const runtime = createRuntime(trafficLight, makeImpl(), {
+      middleware: [
+        (_mw, next) => {
+          next();
+          next();
+        },
+      ],
+    });
+    expect(() => runtime.send({ type: "NEXT" })).toThrow(/next\(\) called multiple/);
+  });
+
   it("middleware sees frozen snapshots — mutating throws in dev", () => {
     const runtime = createRuntime(trafficLight, makeImpl(), {
       middleware: [

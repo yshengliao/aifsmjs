@@ -33,11 +33,14 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test
-        run: pnpm test
+      - name: Test (with coverage thresholds)
+        run: pnpm coverage
 
       - name: Build
         run: pnpm build
 
       - name: Verify package exports
         run: pnpm verify:exports
+
+      - name: Check bundle sizes
+        run: pnpm check:size

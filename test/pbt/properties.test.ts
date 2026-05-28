@@ -45,4 +45,12 @@ describe("PBT generic properties — traffic-light fixture", () => {
   it("assertAll convenience runner", () => {
     assertAll(trafficLight, makeImpl(), eventArbs, { numRuns: 25 });
   });
+
+  it("opts honour seed and verbose flags", () => {
+    snapshotAlwaysFrozen(trafficLight, makeImpl(), eventArbs, {
+      numRuns: 5,
+      seed: 42,
+      verbose: true,
+    });
+  });
 });

@@ -53,6 +53,16 @@ Initial public release.
 - 94 example-based tests (vitest) plus PBT smoke runs against a traffic-light
   fixture.
 
+### CI guarantees
+
+- **Coverage threshold**: 100% statements / 100% lines / 100% functions /
+  ≥90% branches, enforced via `@vitest/coverage-v8` thresholds (actual on
+  v0.1.0 release: 100/100/100/98.81). Defensive invariant-guard branches
+  carry `/* v8 ignore */` annotations with rationale comments.
+- **Per-subpath gzip size budget** (verified by `scripts/check-size.mjs`):
+  core ≤3 KB · replay ≤1.6 KB · pbt ≤4.5 KB · guards / effects / inspect /
+  timer ≤1 KB each. Tarball measured at ~98 KB / 48 files.
+
 ### Out of scope (v1)
 
 Hierarchical / compound states, parallel state regions, actor invocation

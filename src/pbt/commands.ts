@@ -55,11 +55,14 @@ class SendCommand<Ctx, Evt extends { type: string }, States extends string>
 
     const predicted = step(this.def, before, this.event, this.impl);
 
+    /* v8 ignore start — invariant guard: fires only when the live runtime
+       diverges from the pure step() prediction, i.e. an internal bug. */
     if (predicted.snapshot.value !== after.value) {
       throw new Error(
         `aifsmjs/pbt: determinism violation — predicted "${String(predicted.snapshot.value)}" but runtime returned "${String(after.value)}" after ${this.toString()}`,
       );
     }
+    /* v8 ignore stop */
 
     m.value = after.value;
     m.context = after.context as Ctx;

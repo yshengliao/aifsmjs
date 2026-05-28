@@ -14,6 +14,7 @@ function validateDefinition<Ctx, Evt extends { type: string }, States extends st
   if (!def.id || typeof def.id !== "string") {
     throw new InvalidDefinitionError("definition must have a non-empty string `id`");
   }
+  /* v8 ignore next 3 — additional safety: TS prevents non-object `states`; this guards untyped JS callers. */
   if (!def.states || typeof def.states !== "object") {
     throw new InvalidDefinitionError("definition must have a `states` object");
   }

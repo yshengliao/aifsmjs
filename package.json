@@ -84,9 +84,11 @@
     "format": "biome format --write src test",
     "typecheck": "tsc --noEmit",
     "verify:exports": "node scripts/verify-exports.mjs",
+    "check:size": "node scripts/check-size.mjs",
+    "coverage": "vitest run --coverage",
     "example:traffic-light": "tsx examples/01-traffic-light/index.ts",
     "example:approval": "tsx examples/02-approval-workflow/index.ts",
-    "prepublishOnly": "pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm verify:exports"
+    "prepublishOnly": "pnpm typecheck && pnpm lint && pnpm coverage && pnpm build && pnpm verify:exports && pnpm check:size"
   },
   "peerDependencies": {
     "fast-check": "^3.20.0"
@@ -99,6 +101,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "fast-check": "^3.20.0",
     "tsup": "^8.3.0",
     "tsx": "^4.22.3",

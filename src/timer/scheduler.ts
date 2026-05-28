@@ -50,6 +50,7 @@ export function after(ms: number, fn: () => void, opts?: AfterOptions): AfterHan
 
   const handle = st(() => {
     fired = true;
+    /* v8 ignore next — defensive race guard: cancel() sets cancelled=true and clears the timer, but if a custom setTimeout fires after clear, this short-circuits fn(). */
     if (cancelled) return;
     fn();
   }, ms);

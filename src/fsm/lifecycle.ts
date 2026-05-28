@@ -89,6 +89,7 @@ export function step<Ctx, Evt extends { type: string }, States extends string>(
   }
 
   const state = def.states[snapshot.value];
+  /* v8 ignore next 3 — defensive: snapshot.value is always validated against def.states by defineMachine + initialSnapshot. */
   if (!state) {
     return Object.freeze({ snapshot, effects: [] as readonly Effect[], changed: false });
   }

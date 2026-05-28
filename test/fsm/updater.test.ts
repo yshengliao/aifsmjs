@@ -37,6 +37,14 @@ describe("mergeContext", () => {
     const merged = mergeContext(1 as any, 2 as any);
     expect(merged).toBe(2);
   });
+
+  it("merges contexts that use Object.create(null)", () => {
+    const a = Object.create(null) as Record<string, number>;
+    a.x = 1;
+    const merged = mergeContext(a, { y: 2 });
+    expect(merged).toEqual({ x: 1, y: 2 });
+    expect(merged).not.toBe(a);
+  });
 });
 
 describe("createEnqueuer", () => {

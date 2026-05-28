@@ -48,8 +48,10 @@ describe("after", () => {
     ac.abort();
     const fn = vi.fn();
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
-    after(1000, fn, { signal: ac.signal });
+    const handle = after(1000, fn, { signal: ac.signal });
     expect(setTimeoutSpy).not.toHaveBeenCalled();
+    // Calling cancel on the NOOP handle is safe (idempotent).
+    expect(() => handle.cancel()).not.toThrow();
     vi.advanceTimersByTime(1000);
     expect(fn).not.toHaveBeenCalled();
   });

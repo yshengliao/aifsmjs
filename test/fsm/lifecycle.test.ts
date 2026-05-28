@@ -195,6 +195,23 @@ describe("step — happy path", () => {
     expect(r.snapshot).toBe(initial);
   });
 
+  it("marks status='final' when transitioning into a final state", () => {
+    type C = Record<string, never>;
+    type E = { type: "FINISH" };
+    const def = defineMachine<C, E, "a" | "b">({
+      id: "m",
+      initial: "a",
+      context: {},
+      states: {
+        a: { on: { FINISH: { target: "b" } } },
+        b: { final: true },
+      },
+    });
+    const r = step(def, initialSnapshot(def), { type: "FINISH" }, {});
+    expect(r.snapshot.value).toBe("b");
+    expect(r.snapshot.status).toBe("final");
+  });
+
   it("supports inline action functions", () => {
     type C = { n: number };
     type E = { type: "GO" };

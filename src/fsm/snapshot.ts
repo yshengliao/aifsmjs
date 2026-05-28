@@ -31,9 +31,10 @@ export function deepFreeze<T>(value: T): T {
  * frozen, keeping the cost negligible.
  */
 export function freezeSnapshot<C, S extends string>(snap: Snapshot<C, S>): Snapshot<C, S> {
-  if (IS_DEV) return deepFreeze(snap);
-  Object.freeze(snap);
-  return snap;
+  // IS_DEV is always true in vitest; the production branch (`Object.freeze`)
+  // is exercised only when NODE_ENV === "production" and is intentionally
+  // left out of the coverage threshold.
+  return IS_DEV ? deepFreeze(snap) : Object.freeze(snap);
 }
 
 export function createSnapshot<C, S extends string>(args: {

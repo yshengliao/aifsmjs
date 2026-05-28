@@ -5,9 +5,15 @@ export default defineConfig({
     include: ["test/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "lcov"],
+      reporter: ["text", "lcov", "html"],
       include: ["src/**/*.ts"],
-      exclude: ["src/**/index.ts"],
+      exclude: ["src/**/index.ts", "src/fsm/types.ts"],
+      thresholds: {
+        statements: 100,
+        branches: 90,
+        functions: 100,
+        lines: 100,
+      },
     },
     typecheck: {
       enabled: false,
