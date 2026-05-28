@@ -341,12 +341,17 @@ sched.cancelAll();
 
 **契約**：
 
-- ✅ Guards 永遠 sync、永遠 pure（不 mutate ctx）
-- ✅ Actions 永遠跑完（無中止機制）
-- ✅ Effects 是宣告（type + payload），不是 callback —— 序列化友善
-- ✅ Snapshot 不可變；dev mode deep-freeze 偵錯，prod shallow 省效能
-- ❌ 不會有 async lifecycle hook
-- ❌ Inspect middleware 不能影響 transition 結果
+保證：
+
+- Guards 永遠 sync、永遠 pure（不 mutate ctx）
+- Actions 永遠跑完（無中止機制）
+- Effects 是宣告（type + payload），不是 callback —— 序列化友善
+- Snapshot 不可變；dev mode deep-freeze 偵錯，prod shallow 省效能
+
+不做：
+
+- async lifecycle hook
+- Inspect middleware 影響 transition 結果
 
 ---
 
@@ -438,14 +443,14 @@ aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle 
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
 | Core size (gzip)           | ~2.8KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
-| Hierarchical states         | ❌ (v1)         | ✅                 | ❌                 | N/A               | ✅                 |
-| Async invoke / actor        | ❌              | ✅                 | ❌                 | N/A               | ❌                 |
-| Guard combinators           | ✅ and/or/not   | ✅ and/or/not      | ❌                 | N/A               | ❌                 |
-| Effects 雙軌                | ✅ enqueue      | enqueueActions    | reduce/action     | ✅ enq.effect()    | array of names    |
-| Inspect / observe           | ✅ read-only    | ✅ inspect API     | ❌                 | ⚠️ 社群提案中     | watch ctx         |
-| Serializable definition     | ✅              | ✅                 | ⚠️                | ⚠️                | ✅                 |
-| fast-check adapter          | ✅ built-in     | ❌                 | ❌                 | ❌                 | ❌                 |
-| Tree-shake subpath imports  | ✅              | ⚠️                | ✅                 | ✅                 | ✅                 |
+| Hierarchical states         | No (v1)        | Yes               | No                | N/A               | Yes               |
+| Async invoke / actor        | No             | Yes               | No                | N/A               | No                |
+| Guard combinators           | and/or/not     | and/or/not        | No                | N/A               | No                |
+| Effects 雙軌                | enqueue        | enqueueActions    | reduce/action     | enq.effect()      | array of names    |
+| Inspect / observe           | read-only      | inspect API       | No                | 社群提案中        | watch ctx         |
+| Serializable definition     | Yes            | Yes               | Partial           | Partial           | Yes               |
+| fast-check adapter          | built-in       | No                | No                | No                | No                |
+| Tree-shake subpath imports  | Yes            | Partial           | Yes               | Yes               | Yes               |
 
 ---
 

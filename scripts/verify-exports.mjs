@@ -29,4 +29,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`verify-exports: all ${Object.keys(pkg.exports).length} subpaths resolved ✓`);
+console.log(`verify-exports: all ${Object.keys(pkg.exports).length} subpaths resolved.`);

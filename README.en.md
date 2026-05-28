@@ -344,12 +344,17 @@ The fixed order inside `step()` (always, no escape hatch):
 
 **Contracts**:
 
-- ✅ Guards are sync and pure (never mutate context)
-- ✅ Actions always run to completion (no cancel mechanism)
-- ✅ Effects are declarations (type + payload), not callbacks — serializable
-- ✅ Snapshot is immutable; dev mode deep-freezes for diagnostics, prod is shallow for speed
-- ❌ No async lifecycle hook
-- ❌ Inspect middleware cannot alter the transition outcome
+Guarantees:
+
+- Guards are sync and pure (never mutate context)
+- Actions always run to completion (no cancel mechanism)
+- Effects are declarations (type + payload), not callbacks — serializable
+- Snapshot is immutable; dev mode deep-freezes for diagnostics, prod is shallow for speed
+
+Non-goals:
+
+- No async lifecycle hook
+- Inspect middleware cannot alter the transition outcome
 
 ---
 
@@ -441,14 +446,14 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
 | Core size (gzip)           | ~2.8KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
-| Hierarchical states         | ❌ (v1)         | ✅                 | ❌                 | N/A               | ✅                 |
-| Async invoke / actor        | ❌              | ✅                 | ❌                 | N/A               | ❌                 |
-| Guard combinators           | ✅ and/or/not   | ✅ and/or/not      | ❌                 | N/A               | ❌                 |
-| Effects dual-track          | ✅ enqueue      | enqueueActions    | reduce/action     | ✅ enq.effect()    | array of names    |
-| Inspect / observe           | ✅ read-only    | ✅ inspect API     | ❌                 | ⚠️ proposed       | watch ctx         |
-| Serializable definition     | ✅              | ✅                 | ⚠️                | ⚠️                | ✅                 |
-| fast-check adapter          | ✅ built-in     | ❌                 | ❌                 | ❌                 | ❌                 |
-| Tree-shake subpath imports  | ✅              | ⚠️                | ✅                 | ✅                 | ✅                 |
+| Hierarchical states         | No (v1)        | Yes               | No                | N/A               | Yes               |
+| Async invoke / actor        | No             | Yes               | No                | N/A               | No                |
+| Guard combinators           | and/or/not     | and/or/not        | No                | N/A               | No                |
+| Effects dual-track          | enqueue        | enqueueActions    | reduce/action     | enq.effect()      | array of names    |
+| Inspect / observe           | read-only      | inspect API       | No                | proposed          | watch ctx         |
+| Serializable definition     | Yes            | Yes               | Partial           | Partial           | Yes               |
+| fast-check adapter          | built-in       | No                | No                | No                | No                |
+| Tree-shake subpath imports  | Yes            | Partial           | Yes               | Yes               | Yes               |
 
 ---
 

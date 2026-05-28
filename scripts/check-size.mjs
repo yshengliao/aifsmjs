@@ -31,8 +31,8 @@ for (const [rel, max] of Object.entries(budgets)) {
   }
   const gz = gzipSync(buf).length;
   const pct = ((gz / max) * 100).toFixed(0);
-  const tag = gz > max ? "✗" : "✓";
-  console.log(`${tag} ${rel.padEnd(28)} gz ${String(gz).padStart(5)} B / ${max} B (${pct}%)`);
+  const tag = gz > max ? "FAIL" : "ok  ";
+  console.log(`[${tag}] ${rel.padEnd(28)} gz ${String(gz).padStart(5)} B / ${max} B (${pct}%)`);
   if (gz > max) failures.push(`${rel}: ${gz} B > ${max} B budget`);
 }
 
@@ -42,4 +42,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`\ncheck-size: all ${Object.keys(budgets).length} entries within budget ✓`);
+console.log(`\ncheck-size: all ${Object.keys(budgets).length} entries within budget.`);
