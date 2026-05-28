@@ -11,6 +11,7 @@ export type {
   MachineDef,
   Middleware,
   MiddlewareContext,
+  ResetEvent,
   Runtime,
   RuntimeOptions,
   Snapshot,
@@ -18,6 +19,8 @@ export type {
   StepResult,
   TransitionDef,
 } from "./types.js";
+
+export { RESET_EVENT_TYPE } from "./types.js";
 
 export { defineMachine, initialSnapshot, InvalidDefinitionError, setup } from "./definition.js";
 export { step, UnknownActionError } from "./lifecycle.js";

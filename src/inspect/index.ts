@@ -48,7 +48,7 @@ export function persist<Ctx, Evt extends { type: string }, States extends string
  * back into `replay()`.
  */
 export type RecordedEntry<Ctx, Evt, States extends string> = Readonly<{
-  event: Evt;
+  event: MiddlewareContext<Ctx, Evt, States>["event"];
   prev: MiddlewareContext<Ctx, Evt, States>["prev"];
   next: MiddlewareContext<Ctx, Evt, States>["next"];
   changed: boolean;

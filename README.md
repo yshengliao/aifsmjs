@@ -391,7 +391,8 @@ aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle 
 4. Effects 永遠 fire-and-forget：runtime 不等 effect 完成才更新 snapshot。
 5. `dispose()` idempotent；post-dispose 呼叫 `send()` / `reset()` 拋 `RuntimeDisposedError`。
 6. `runtime.signal.aborted` 在 dispose 後永遠為 `true`；effect handler 拿到的 signal 即此。
-7. `reset()` 只重置 snapshot 與通知 listener，**不跑 entry actions**。
+7. `reset()` 只重置 snapshot 與通知 listener，**不跑 entry actions**；listeners 只在 `prev.value !== initial.value` 時被通知（與 `send()` 對齊）。Middleware 永遠看得到該次呼叫（含 `changed: false`）。
+8. `MiddlewareContext.event` 是 `Evt | ResetEvent`；無事件的 `reset()` 會塞入 `RESET_EVENT_TYPE` (`"@@aifsmjs/RESET"`) 哨兵。
 
 ### Common misuses
 

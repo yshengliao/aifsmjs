@@ -24,7 +24,14 @@ Initial public release.
 - **`aifsmjs/effects`** — `Enqueuer` API (`enqueue.effect(type, payload?)`)
   and a standalone `runEffects()` dispatcher. Effects are descriptors, not
   callbacks, so they remain serializable. `EffectHandler` receives the
-  runtime's `AbortSignal` in `args.signal` (also accepted by `runEffects`).
+  runtime's `AbortSignal` in `args.signal`. `runEffects()` accepts
+  `args.signal` as optional — standalone callers may omit it and the
+  dispatcher supplies a never-aborting placeholder.
+- **`Runtime.reset()`** — listeners notified only when `prev.value !==
+  initial.value` (parity with `send()`); middleware always observes the
+  call regardless. The triggering event is exposed on
+  `MiddlewareContext.event` as `Evt | ResetEvent`. The sentinel
+  `RESET_EVENT_TYPE` (`"@@aifsmjs/RESET"`) is exported for discrimination.
 - **`aifsmjs/inspect`** — Koa-style read-only middleware pipeline. Built-in
   `logger`, `persist`, and `recorder` middlewares. Middleware cannot alter a
   transition outcome.

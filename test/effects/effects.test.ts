@@ -80,4 +80,16 @@ describe("runEffects", () => {
     runEffects([{ type: "a" }], handlers, { context: null, event: {}, signal: ac.signal });
     expect(observed).toBe(true);
   });
+
+  it("supplies a never-aborting signal when caller omits it", () => {
+    let received: AbortSignal | undefined;
+    const handlers: Record<string, EffectHandler<unknown, unknown>> = {
+      a: (_eff, { signal }) => {
+        received = signal;
+      },
+    };
+    runEffects([{ type: "a" }], handlers, { context: null, event: {} });
+    expect(received).toBeDefined();
+    expect(received?.aborted).toBe(false);
+  });
 });

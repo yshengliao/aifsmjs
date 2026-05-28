@@ -81,10 +81,23 @@ export type StepResult<Ctx, States extends string> = Readonly<{
   changed: boolean;
 }>;
 
+/**
+ * Sentinel event type that `Runtime.reset()` synthesises when the caller does
+ * not pass an explicit event. Middleware receives it through
+ * `MiddlewareContext.event`. Exposed so user code can discriminate.
+ */
+export const RESET_EVENT_TYPE = "@@aifsmjs/RESET" as const;
+export type ResetEvent = Readonly<{ type: typeof RESET_EVENT_TYPE }>;
+
 export type MiddlewareContext<Ctx, Evt, States extends string> = Readonly<{
   prev: Snapshot<Ctx, States>;
   next: Snapshot<Ctx, States>;
-  event: Evt;
+  /**
+   * The triggering event. May be the user's `Evt` (from `send()` or an
+   * explicit `reset(event)`) or the `ResetEvent` sentinel emitted by a
+   * `reset()` with no event argument.
+   */
+  event: Evt | ResetEvent;
   effects: readonly Effect[];
   changed: boolean;
 }>;

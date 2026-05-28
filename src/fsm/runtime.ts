@@ -1,14 +1,16 @@
 import { initialSnapshot } from "./definition.js";
 import { step } from "./lifecycle.js";
 import { deepFreeze } from "./snapshot.js";
-import type {
-  Effect,
-  Implementations,
-  MachineDef,
-  Middleware,
-  Runtime,
-  RuntimeOptions,
-  Snapshot,
+import {
+  type Effect,
+  type Implementations,
+  type MachineDef,
+  type Middleware,
+  RESET_EVENT_TYPE,
+  type ResetEvent,
+  type Runtime,
+  type RuntimeOptions,
+  type Snapshot,
 } from "./types.js";
 
 export class RuntimeDisposedError extends Error {
@@ -18,7 +20,7 @@ export class RuntimeDisposedError extends Error {
   }
 }
 
-const RESET_SENTINEL = "@@aifsmjs/RESET";
+const RESET_EVENT: ResetEvent = Object.freeze({ type: RESET_EVENT_TYPE });
 
 function composeMiddleware<Ctx, Evt, States extends string>(
   middleware: readonly Middleware<Ctx, Evt, States>[],
@@ -81,7 +83,7 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
 
   function runMiddleware(
     prev: Snapshot<Ctx, States>,
-    event: Evt,
+    event: Evt | ResetEvent,
     effects: readonly Effect[],
     changed: boolean,
   ) {
@@ -116,10 +118,13 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     if (disposed) throw new RuntimeDisposedError();
     const prev = snapshot;
     snapshot = initialSnapshot(def);
-    const triggerEvent = event ?? ({ type: RESET_SENTINEL } as unknown as Evt);
-    const changed = prev.value !== snapshot.value || prev.context !== snapshot.context;
+    // Notify only when the state value actually changed, mirroring send().
+    // `prev.context !== snapshot.context` would always be true (new ref from
+    // initialSnapshot) so we compare on `value` only.
+    const changed = prev.value !== snapshot.value;
+    const triggerEvent: Evt | ResetEvent = event ?? RESET_EVENT;
     runMiddleware(prev, triggerEvent, [], changed);
-    notify();
+    if (changed) notify();
     return snapshot;
   }
 

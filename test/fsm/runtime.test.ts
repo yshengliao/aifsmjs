@@ -215,4 +215,26 @@ describe("runtime lifecycle — dispose / reset / signal", () => {
     runtime.reset();
     expect(middlewareEvent?.type).toBe("@@aifsmjs/RESET");
   });
+
+  it("reset() on initial state does not notify listeners", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const listener = vi.fn();
+    runtime.subscribe(listener);
+    runtime.reset(); // already at "red"; no change
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("reset() middleware sees changed=false when already at initial", () => {
+    let observed = true;
+    const runtime = createRuntime(trafficLight, makeImpl(), {
+      middleware: [
+        (mw, next) => {
+          observed = mw.changed;
+          next();
+        },
+      ],
+    });
+    runtime.reset();
+    expect(observed).toBe(false);
+  });
 });

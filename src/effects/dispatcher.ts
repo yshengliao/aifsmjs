@@ -1,5 +1,13 @@
 import type { Effect, EffectHandler } from "../fsm/types.js";
 
+// Lazily-built never-aborting signal for callers who don't supply one. Reused
+// across runEffects() invocations to avoid allocating a controller per call.
+let NEVER_SIGNAL: AbortSignal | undefined;
+function neverSignal(): AbortSignal {
+  if (!NEVER_SIGNAL) NEVER_SIGNAL = new AbortController().signal;
+  return NEVER_SIGNAL;
+}
+
 /**
  * Dispatch a batch of effects through the supplied handler map. Effects whose
  * `type` has no handler are silently skipped (the runtime treats unhandled
@@ -10,21 +18,23 @@ import type { Effect, EffectHandler } from "../fsm/types.js";
  * is fire-and-forget and discards them.
  *
  * Each handler receives an `AbortSignal`. When called from `createRuntime`,
- * the signal is the runtime's own controller. Stand-alone callers may
- * synthesise their own (e.g. `AbortSignal.timeout(5000)`) or pass
- * `AbortSignal.any([...])` to compose lifetimes.
+ * the signal is the runtime's own controller. Stand-alone callers may omit
+ * `args.signal` (a never-aborting placeholder is supplied) or pass their own
+ * (e.g. `AbortSignal.timeout(5000)`, `AbortSignal.any([...])`).
  */
 export function runEffects<Ctx, Evt>(
   effects: readonly Effect[],
   handlers: Readonly<Record<string, EffectHandler<Ctx, Evt>>> | undefined,
-  args: { context: Ctx; event: Evt; signal: AbortSignal },
+  args: { context: Ctx; event: Evt; signal?: AbortSignal },
 ): readonly Promise<void>[] {
   if (!handlers || effects.length === 0) return [];
+  const signal = args.signal ?? neverSignal();
+  const handlerArgs = { context: args.context, event: args.event, signal };
   const promises: Promise<void>[] = [];
   for (const eff of effects) {
     const h = handlers[eff.type];
     if (!h) continue;
-    const r = h(eff, args);
+    const r = h(eff, handlerArgs);
     if (r instanceof Promise) promises.push(r);
   }
   return promises;

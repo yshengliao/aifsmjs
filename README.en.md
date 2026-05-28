@@ -394,7 +394,8 @@ The following are **not serializable** and will break PBT/replay:
 4. Effects are always fire-and-forget: the runtime never waits for an effect before updating the snapshot.
 5. `dispose()` is idempotent; post-dispose `send()` / `reset()` throws `RuntimeDisposedError`.
 6. `runtime.signal.aborted` is `true` for the rest of time once disposed; the effect handler's `signal` is the same one.
-7. `reset()` only resets the snapshot and notifies listeners — it does **not** run entry actions.
+7. `reset()` only resets the snapshot and notifies listeners — it does **not** run entry actions. Listeners are notified only when `prev.value !== initial.value` (parity with `send()`). Middleware always observes the call (possibly with `changed: false`).
+8. `MiddlewareContext.event` is typed `Evt | ResetEvent`; a `reset()` without an event injects the `RESET_EVENT_TYPE` sentinel (`"@@aifsmjs/RESET"`).
 
 ### Common misuses
 
