@@ -111,7 +111,7 @@ export function step<Ctx, Evt extends { type: string }, States extends string>(
   const nextState = def.states[nextStateValue];
 
   const effectSink: Effect[] = [];
-  let ctx = snapshot.context as Ctx;
+  let ctx = snapshot.context;
 
   if (isExternal) {
     ctx = runActions(state.exit, ctx, event, impl, effectSink);

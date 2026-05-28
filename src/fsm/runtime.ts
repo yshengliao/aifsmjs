@@ -105,18 +105,14 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     middlewareChain(mwCtx, () => {});
   }
 
-  function dispatchEffects(
-    effects: readonly Effect[],
-    context: Ctx,
-    event: Evt | ResetEvent,
-  ): void {
+  function dispatchEffects(effects: readonly Effect[], context: Ctx, event: Evt): void {
     if (!impl.effects || effects.length === 0) return;
     for (const eff of effects) {
       const handler = impl.effects[eff.type];
       if (!handler) continue;
       // Sync throws still propagate to the caller of send(); async rejections
       // surface on the 'error' event channel instead of becoming unhandled.
-      const r = handler(eff, { context, event: event as Evt, signal: controller.signal });
+      const r = handler(eff, { context, event, signal: controller.signal });
       if (r instanceof Promise) {
         r.catch((err: unknown) => {
           const payload: RuntimeErrorEvent<Evt> = { error: err, event };
