@@ -31,6 +31,9 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
+      - name: Upgrade npm CLI to 11+ (needed for OIDC trusted publisher)
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -67,13 +70,15 @@ jobs:
         run: pnpm verify:llms
 
       - name: Publish dry-run (audit tarball)
-        run: pnpm publish --dry-run --no-git-checks --access public
+        run: npm publish --dry-run --access public
 
-      - name: Publish to npm
+      - name: Publish to npm (OIDC + provenance)
         if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
-        run: pnpm publish --no-git-checks --provenance --access public --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Use `npm publish` directly (not `pnpm publish`) so the npm CLI's
+        # OIDC trusted-publisher flow kicks in via the `id-token: write`
+        # permission set on this job. No NPM_TOKEN secret is needed; the
+        # GitHub OIDC token is exchanged for a short-lived npm credential.
+        run: npm publish --access public --provenance --ignore-scripts
 
       - name: Publish summary
         if: github.event_name == 'push' || github.event.inputs.dry-run != 'true'
