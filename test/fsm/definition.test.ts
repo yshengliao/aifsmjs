@@ -4,9 +4,9 @@ import {
   defineMachine,
   initialSnapshot,
   setup,
-} from "../../src/core/definition.js";
-import { createRuntime } from "../../src/core/runtime.js";
-import { assign } from "../../src/core/updater.js";
+} from "../../src/fsm/definition.js";
+import { createRuntime } from "../../src/fsm/runtime.js";
+import { assign } from "../../src/fsm/updater.js";
 
 describe("defineMachine", () => {
   it("returns the same definition object", () => {

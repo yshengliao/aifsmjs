@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { UnknownGuardError, evalGuard, resolveGuard } from "../../src/core/evaluator.js";
-import type { Guard, Implementations } from "../../src/core/types.js";
+import { UnknownGuardError, evalGuard, resolveGuard } from "../../src/fsm/evaluator.js";
+import type { Guard, Implementations } from "../../src/fsm/types.js";
 
 type Ctx = { n: number };
 type Evt = { type: "X" };

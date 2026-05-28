@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evalGuard } from "../../src/core/evaluator.js";
-import type { Guard, Implementations } from "../../src/core/types.js";
+import { evalGuard } from "../../src/fsm/evaluator.js";
+import type { Guard, Implementations } from "../../src/fsm/types.js";
 import { and, not, or, stateIn } from "../../src/guards/index.js";
 
 type Ctx = { n: number };

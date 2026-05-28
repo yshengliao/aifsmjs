@@ -92,7 +92,10 @@ const impl: Implementations<Ctx, Evt> = {
     },
   },
   effects: {
-    email: (eff) => {
+    email: (eff, { signal }) => {
+      // Honour the runtime's signal: a real handler would pass it through to
+      // `fetch(url, { signal })` so dispose() also cancels in-flight requests.
+      if (signal.aborted) return;
       console.log(`[effect:email] ${JSON.stringify(eff.payload)}`);
     },
     audit: (eff) => {
@@ -159,3 +162,13 @@ const replayed = replay(
 console.log("live  :", { value: initial.value, context: initial.context });
 console.log("replay:", { value: replayed.snapshot.value, context: replayed.snapshot.context });
 console.log("equal :", initial.value === replayed.snapshot.value);
+
+console.log("\n--- teardown via runtime.dispose() ---");
+console.log("signal before dispose:", runtime.signal.aborted);
+runtime.dispose();
+console.log("signal after  dispose:", runtime.signal.aborted);
+try {
+  runtime.send({ type: "SUBMIT" });
+} catch (err) {
+  console.log("post-dispose send rejected:", (err as Error).name);
+}

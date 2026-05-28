@@ -1,6 +1,6 @@
-import { defineMachine } from "../../src/core/definition.js";
-import type { Implementations } from "../../src/core/types.js";
-import { assign } from "../../src/core/updater.js";
+import { defineMachine } from "../../src/fsm/definition.js";
+import type { Implementations } from "../../src/fsm/types.js";
+import { assign } from "../../src/fsm/updater.js";
 
 export type Ctx = { ticks: number; emergency: boolean };
 export type Evt = { type: "NEXT" } | { type: "EMERGENCY" } | { type: "RESET" };

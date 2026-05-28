@@ -1,5 +1,10 @@
-import { isPlainObject } from "./snapshot.js";
-import type { Action, Enqueuer } from "./types.js";
+import type { Action } from "./types.js";
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
 
 /**
  * Build an Action that returns a Partial<Ctx> from a pure updater.
@@ -19,24 +24,8 @@ export function assign<Ctx, Evt>(
  */
 export function mergeContext<Ctx>(current: Ctx, patch: Partial<Ctx> | void): Ctx {
   if (patch === undefined || patch === null) return current;
-  if (isPlainObject(current) && isPlainObject(patch)) {
+  if (isPlainRecord(current) && isPlainRecord(patch)) {
     return { ...current, ...patch } as Ctx;
   }
   return patch as Ctx;
-}
-
-/**
- * Build a closure-based Enqueuer that pushes effects into the supplied sink.
- * Each `step()` invocation creates one such enqueuer and discards it afterwards.
- */
-export function createEnqueuer(sink: { type: string; payload?: unknown }[]): Enqueuer {
-  return Object.freeze({
-    effect(type: string, payload?: unknown) {
-      if (payload === undefined) {
-        sink.push(Object.freeze({ type }));
-      } else {
-        sink.push(Object.freeze({ type, payload }));
-      }
-    },
-  });
 }

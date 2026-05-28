@@ -1,6 +1,6 @@
-import type { Middleware, MiddlewareContext } from "../core/types.js";
+import type { Middleware, MiddlewareContext } from "../fsm/types.js";
 
-export type { Middleware, MiddlewareContext } from "../core/types.js";
+export type { Middleware, MiddlewareContext } from "../fsm/types.js";
 
 /**
  * Log every transition that changed the snapshot. Default formatter:

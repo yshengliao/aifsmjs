@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { initialSnapshot } from "../../src/core/definition.js";
-import { createRuntime } from "../../src/core/runtime.js";
+import { initialSnapshot } from "../../src/fsm/definition.js";
+import { createRuntime } from "../../src/fsm/runtime.js";
 import { replay } from "../../src/replay/index.js";
 import { type Evt, makeImpl, trafficLight } from "../fixtures/traffic-light.js";
 

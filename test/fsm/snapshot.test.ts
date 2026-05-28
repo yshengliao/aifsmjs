@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSnapshot, deepFreeze, isPlainObject } from "../../src/core/snapshot.js";
+import { createSnapshot, deepFreeze } from "../../src/fsm/snapshot.js";
 
 describe("snapshot helpers", () => {
   it("createSnapshot freezes the top object", () => {
@@ -21,16 +21,5 @@ describe("snapshot helpers", () => {
     const json = JSON.stringify(s);
     const parsed = JSON.parse(json);
     expect(parsed).toEqual({ value: "red", context: { ticks: 0 }, status: "active" });
-  });
-
-  it("isPlainObject returns true for object literal", () => {
-    expect(isPlainObject({})).toBe(true);
-    expect(isPlainObject({ a: 1 })).toBe(true);
-  });
-
-  it("isPlainObject returns false for arrays, null, instances", () => {
-    expect(isPlainObject([])).toBe(false);
-    expect(isPlainObject(null)).toBe(false);
-    expect(isPlainObject(new Date())).toBe(false);
   });
 });

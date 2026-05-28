@@ -11,14 +11,20 @@ Initial public release.
 
 ### Added
 
-- **core** — `defineMachine`, `createRuntime`, `step()` pure function with
-  fixed `guards → exit → action → entry` lifecycle order. Snapshot is frozen
-  (deep-frozen in dev). Implementations injected at runtime via string refs.
+- **fsm/** (source folder, internal) — `defineMachine`, `setup<Ctx, Evt>()`
+  curried builder for inferred States, `createRuntime`, `step()` pure
+  function with fixed `guards → exit → action → entry` lifecycle order.
+  Runtime exposes `dispose()`, `reset(event?)`, `disposed`, `signal`
+  (internal `AbortController` lifetime) — see the Lifecycle Protocol section
+  of README. `RuntimeDisposedError` thrown on post-dispose calls. Snapshot
+  is frozen (deep-frozen in dev). Implementations injected at runtime via
+  string refs.
 - **`aifsmjs/guards`** — `and / or / not / stateIn` higher-order combinators
   with short-circuit evaluation. Both string-ref and inline `Guard` supported.
 - **`aifsmjs/effects`** — `Enqueuer` API (`enqueue.effect(type, payload?)`)
   and a standalone `runEffects()` dispatcher. Effects are descriptors, not
-  callbacks, so they remain serializable.
+  callbacks, so they remain serializable. `EffectHandler` receives the
+  runtime's `AbortSignal` in `args.signal` (also accepted by `runEffects`).
 - **`aifsmjs/inspect`** — Koa-style read-only middleware pipeline. Built-in
   `logger`, `persist`, and `recorder` middlewares. Middleware cannot alter a
   transition outcome.

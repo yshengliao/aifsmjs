@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assign, createEnqueuer, mergeContext } from "../../src/core/updater.js";
+import { createEnqueuer } from "../../src/effects/enqueuer.js";
+import { assign, mergeContext } from "../../src/fsm/updater.js";
 
 type Ctx = { n: number; name: string };
 

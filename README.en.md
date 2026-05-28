@@ -21,7 +21,7 @@ Developers coming from C# Chain-of-Responsibility instinctively wrap FSM lifecyc
 - **Definition is plain data**: guards / actions / effects are referenced by string; implementations are injected only at runtime. Serializable, transferable across Web Workers, persistable to a database.
 - **PBT is first-class**: built-in `fast-check` `fc.commands` adapter plus 6 generic property tests. No comparable library currently ships this.
 
-In ecosystem terms: closer to Robot3's functional composition + XState v5's `and/or/not` guard combinators + `@xstate/store` v3's `enq.effect()` dual-track side effects. The core measures ~2.5KB ESM gzipped (v0.1.0); every opt-in subpath is independently tree-shakeable.
+In ecosystem terms: closer to Robot3's functional composition + XState v5's `and/or/not` guard combinators + `@xstate/store` v3's `enq.effect()` dual-track side effects. The core measures ~2.8KB ESM gzipped (v0.1.0); every opt-in subpath is independently tree-shakeable.
 
 ---
 
@@ -182,10 +182,16 @@ interface Runtime<C, E, S> {
   getSnapshot(): Snapshot<C, S>;
   send(event: E): Snapshot<C, S>;
   subscribe(listener: (snap: Snapshot<C, S>) => void): () => void;
+  reset(event?: E): Snapshot<C, S>;
+  dispose(): void;
+  readonly disposed: boolean;
+  readonly signal: AbortSignal;
 }
 ```
 
-Thin wrapper. Internally calls `step()` and dispatches effects.
+Thin wrapper. Internally calls `step()` and dispatches effects. `dispose()` aborts the built-in `AbortController`, clears listeners, and causes subsequent `send()` / `reset()` calls to throw `RuntimeDisposedError`. `reset()` rewinds the snapshot to `initialSnapshot(def)` and notifies subscribers, but **does not run entry actions** — reset is "the runtime is reborn", not a transition.
+
+`runtime.signal` is the runtime's lifetime signal; it fires once on dispose. Every `EffectHandler` receives it via `args.signal`. External integrations (React unmount, game scene teardown) can attach `runtime.signal.addEventListener("abort", ...)` to chain their own cleanup.
 
 ### `step(def, snapshot, event, impl)`
 
@@ -345,6 +351,24 @@ The fixed order inside `step()` (always, no escape hatch):
 
 ---
 
+## Lifecycle Protocol
+
+aifsmjs is the first package in a "minimal AI toolchain" family. This lifecycle protocol is meant to be reused by future packages (`aitaskjs / aibridgejs / aiaudiojs` and friends):
+
+| Verb | aifsmjs equivalent | Semantics |
+|---|---|---|
+| `createX()` | `createRuntime` / `createScheduler` / `defineMachine` / `setup` | Factory function returning the instance |
+| `dispose()` | `runtime.dispose()` / `scheduler.cancelAll()` | Release resources; idempotent; post-dispose API throws a known error |
+| `reset()` | `runtime.reset()` | Zero out state without releasing resources |
+| `on/off` | `runtime.subscribe(fn)` returning an unsubscribe fn | Subscription pattern; explicit unsubscribe |
+| `AbortSignal` | `runtime.signal` / `after(_, _, { signal })` | Cancellation channel for any long-running / async work |
+| Pure core | `step()` | No I/O, serializable, replayable |
+| Explicit errors | `RuntimeDisposedError` / `UnknownGuardError` / `UnknownActionError` / `InvalidDefinitionError` | Named error classes, never bare `throw "string"` |
+
+When future ai\*js packages ask "should this have a dispose?" or "where does the signal plug in?", this table is the baseline.
+
+---
+
 ## AI-Agent Reading Guide
 
 > This section is for LLMs and code-search agents. Invariants, types, and misuse patterns are concentrated here.
@@ -368,6 +392,9 @@ The following are **not serializable** and will break PBT/replay:
 2. Snapshots are frozen: in dev mode any mutation throws immediately.
 3. Guards never mutate context: violators are caught by PBT property #2.
 4. Effects are always fire-and-forget: the runtime never waits for an effect before updating the snapshot.
+5. `dispose()` is idempotent; post-dispose `send()` / `reset()` throws `RuntimeDisposedError`.
+6. `runtime.signal.aborted` is `true` for the rest of time once disposed; the effect handler's `signal` is the same one.
+7. `reset()` only resets the snapshot and notifies listeners — it does **not** run entry actions.
 
 ### Common misuses
 
@@ -380,7 +407,7 @@ The following are **not serializable** and will break PBT/replay:
 
 ### Machine-readable schema
 
-A JSON schema for `MachineDef` will ship at `dist/schema/machine.schema.json`. Not yet available in v1; types live in [src/core/types.ts](src/core/types.ts) for agents to derive from.
+A JSON schema for `MachineDef` will ship at `dist/schema/machine.schema.json`. Not yet available in v1; types live in [src/fsm/types.ts](src/fsm/types.ts) for agents to derive from.
 
 ---
 
@@ -408,7 +435,7 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
-| Core size (gzip)           | ~2.5KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
+| Core size (gzip)           | ~2.8KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
 | Hierarchical states         | ❌ (v1)         | ✅                 | ❌                 | N/A               | ✅                 |
 | Async invoke / actor        | ❌              | ✅                 | ❌                 | N/A               | ❌                 |
 | Guard combinators           | ✅ and/or/not   | ✅ and/or/not      | ❌                 | N/A               | ❌                 |

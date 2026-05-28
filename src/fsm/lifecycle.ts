@@ -1,3 +1,4 @@
+import { createEnqueuer } from "../effects/enqueuer.js";
 import { evalGuard } from "./evaluator.js";
 import { freezeSnapshot } from "./snapshot.js";
 import type {
@@ -10,7 +11,7 @@ import type {
   StepResult,
   TransitionDef,
 } from "./types.js";
-import { createEnqueuer, mergeContext } from "./updater.js";
+import { mergeContext } from "./updater.js";
 
 export class UnknownActionError extends Error {
   readonly actionName: string;

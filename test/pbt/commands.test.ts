@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { createRuntime } from "../../src/core/runtime.js";
+import { createRuntime } from "../../src/fsm/runtime.js";
 import { commandsFromMachine, initialModel } from "../../src/pbt/commands.js";
 import {
   type Ctx,

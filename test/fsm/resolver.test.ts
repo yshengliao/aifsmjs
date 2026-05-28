@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTransitions } from "../../src/core/resolver.js";
+import { resolveTransitions } from "../../src/fsm/resolver.js";
 import { trafficLight } from "../fixtures/traffic-light.js";
 
 describe("resolveTransitions", () => {

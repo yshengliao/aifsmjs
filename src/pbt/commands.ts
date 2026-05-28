@@ -1,6 +1,6 @@
 import * as fc from "fast-check";
-import { step } from "../core/lifecycle.js";
-import type { Implementations, MachineDef, Runtime, Snapshot } from "../core/types.js";
+import { step } from "../fsm/lifecycle.js";
+import type { Implementations, MachineDef, Runtime, Snapshot } from "../fsm/types.js";
 
 /**
  * Pure-model representation of an FSM run, used by `fc.commands`.

@@ -1,9 +1,9 @@
 import * as fc from "fast-check";
-import { initialSnapshot } from "../core/definition.js";
-import { step } from "../core/lifecycle.js";
-import { createRuntime } from "../core/runtime.js";
-import type { Guard, Implementations, MachineDef } from "../core/types.js";
-import { mergeContext } from "../core/updater.js";
+import { initialSnapshot } from "../fsm/definition.js";
+import { step } from "../fsm/lifecycle.js";
+import { createRuntime } from "../fsm/runtime.js";
+import type { Guard, Implementations, MachineDef } from "../fsm/types.js";
+import { mergeContext } from "../fsm/updater.js";
 import { replay } from "../replay/index.js";
 import {
   type EventArbitraries,

@@ -24,12 +24,18 @@ describe("createEnqueuer", () => {
 });
 
 describe("runEffects", () => {
-  it("dispatches handlers", () => {
+  const neverSignal = new AbortController().signal;
+
+  it("dispatches handlers with signal in args", () => {
     const handler = vi.fn();
     const effects: Effect[] = [{ type: "a", payload: 1 }];
     const handlers: Record<string, EffectHandler<unknown, unknown>> = { a: handler };
-    runEffects(effects, handlers, { context: null, event: { type: "X" } });
-    expect(handler).toHaveBeenCalledWith(effects[0], { context: null, event: { type: "X" } });
+    runEffects(effects, handlers, { context: null, event: { type: "X" }, signal: neverSignal });
+    expect(handler).toHaveBeenCalledWith(effects[0], {
+      context: null,
+      event: { type: "X" },
+      signal: neverSignal,
+    });
   });
 
   it("returns promises for async handlers", () => {
@@ -38,19 +44,40 @@ describe("runEffects", () => {
         await Promise.resolve();
       },
     };
-    const promises = runEffects([{ type: "a" }], handlers, { context: null, event: {} });
+    const promises = runEffects([{ type: "a" }], handlers, {
+      context: null,
+      event: {},
+      signal: neverSignal,
+    });
     expect(promises).toHaveLength(1);
   });
 
   it("skips unhandled effect types", () => {
     const handler = vi.fn();
     const handlers: Record<string, EffectHandler<unknown, unknown>> = { a: handler };
-    runEffects([{ type: "b" }], handlers, { context: null, event: {} });
+    runEffects([{ type: "b" }], handlers, { context: null, event: {}, signal: neverSignal });
     expect(handler).not.toHaveBeenCalled();
   });
 
   it("no-op when handlers map is undefined", () => {
-    const promises = runEffects([{ type: "a" }], undefined, { context: null, event: {} });
+    const promises = runEffects([{ type: "a" }], undefined, {
+      context: null,
+      event: {},
+      signal: neverSignal,
+    });
     expect(promises).toEqual([]);
+  });
+
+  it("forwards an aborted signal so handlers can short-circuit", () => {
+    const ac = new AbortController();
+    ac.abort();
+    let observed: boolean | undefined;
+    const handlers: Record<string, EffectHandler<unknown, unknown>> = {
+      a: (_eff, { signal }) => {
+        observed = signal.aborted;
+      },
+    };
+    runEffects([{ type: "a" }], handlers, { context: null, event: {}, signal: ac.signal });
+    expect(observed).toBe(true);
   });
 });

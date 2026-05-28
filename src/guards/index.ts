@@ -1,5 +1,5 @@
-import { UnknownGuardError } from "../core/evaluator.js";
-import type { Guard, GuardArgs, GuardRef } from "../core/types.js";
+import { UnknownGuardError } from "../fsm/evaluator.js";
+import type { Guard, GuardArgs, GuardRef } from "../fsm/types.js";
 
 function resolveItem<Ctx, Evt>(item: GuardRef<Ctx, Evt>, args: GuardArgs<Ctx, Evt>): boolean {
   if (typeof item === "function") return item(args);

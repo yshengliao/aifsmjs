@@ -35,7 +35,7 @@ export type Action<Ctx, Evt> = (args: {
 
 export type EffectHandler<Ctx, Evt> = (
   effect: Effect,
-  args: { context: Ctx; event: Evt },
+  args: { context: Ctx; event: Evt; signal: AbortSignal },
 ) => void | Promise<void>;
 
 export type GuardRef<Ctx, Evt> = string | Guard<Ctx, Evt>;
@@ -98,6 +98,30 @@ export interface Runtime<Ctx, Evt extends { type: string }, States extends strin
   getSnapshot(): Snapshot<Ctx, States>;
   send(event: Evt): Snapshot<Ctx, States>;
   subscribe(listener: (snap: Snapshot<Ctx, States>) => void): () => void;
+  /**
+   * Re-initialise the runtime to the definition's initial snapshot. Triggers
+   * subscribers but does NOT run entry actions (reset = re-birth, not
+   * "transition into initial"). Throws RuntimeDisposedError if disposed.
+   * If an `event` is supplied, middleware sees it as the trigger; otherwise
+   * a sentinel `{ type: "@@aifsmjs/RESET" }` is synthesised.
+   */
+  reset(event?: Evt): Snapshot<Ctx, States>;
+  /**
+   * Tear down: abort the internal AbortController (effect handlers see signal
+   * fire), clear listeners, and mark this runtime as disposed. Subsequent
+   * send()/reset() calls throw RuntimeDisposedError. Idempotent.
+   */
+  dispose(): void;
+  /**
+   * True after `dispose()` has been called.
+   */
+  readonly disposed: boolean;
+  /**
+   * AbortSignal scoped to this runtime's lifetime. Fires once on dispose().
+   * Threaded to every EffectHandler invocation; external integrations
+   * (e.g. component teardown) can also attach `signal.addEventListener("abort", ...)`.
+   */
+  readonly signal: AbortSignal;
 }
 
 export type RuntimeOptions<Ctx, Evt, States extends string> = Readonly<{

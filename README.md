@@ -19,7 +19,7 @@
 - **Definition 純資料**：guards / actions / effects 用 string ref 引用，runtime 才注入實作。可序列化、可在 Web Worker 之間傳遞、可存 DB。
 - **PBT first-class**：內建 `fast-check` `fc.commands` adapter 與 6 條 generic property tests，市場目前沒有同類產品做這件事。
 
-對應到既有生態：思路接近 Robot3 的 functional composition + XState v5 的 `and/or/not` guard 組合子 + `@xstate/store` v3 的 `enq.effect()` 雙軌副作用，core 實測 ~2.5KB ESM gzipped（v0.1.0），每個 opt-in subpath 獨立可 tree-shake。
+對應到既有生態：思路接近 Robot3 的 functional composition + XState v5 的 `and/or/not` guard 組合子 + `@xstate/store` v3 的 `enq.effect()` 雙軌副作用，core 實測 ~2.8KB ESM gzipped（v0.1.0），每個 opt-in subpath 獨立可 tree-shake。
 
 ---
 
@@ -179,10 +179,16 @@ interface Runtime<C, E, S> {
   getSnapshot(): Snapshot<C, S>;
   send(event: E): Snapshot<C, S>;
   subscribe(listener: (snap: Snapshot<C, S>) => void): () => void;
+  reset(event?: E): Snapshot<C, S>;
+  dispose(): void;
+  readonly disposed: boolean;
+  readonly signal: AbortSignal;
 }
 ```
 
-薄包裝。內部呼叫 `step()` 並 dispatch effects。
+薄包裝。內部呼叫 `step()` 並 dispatch effects。`dispose()` 會 abort 內建 `AbortController`、清空 listeners，並讓後續的 `send()` / `reset()` 丟 `RuntimeDisposedError`。`reset()` 把 snapshot 拉回 `initialSnapshot(def)`、觸發 listeners，但**不會跑 entry actions**（reset 是「整個 runtime 回出生點」，不是 transition）。
+
+`runtime.signal` 是這個 runtime 的生命週期 signal，會在 dispose 時 abort 一次。被傳進每個 `EffectHandler` 的 `args.signal`；外部整合（React unmount、game scene teardown）也可以 `runtime.signal.addEventListener("abort", ...)` 串自己的收尾。
 
 ### `step(def, snapshot, event, impl)`
 
@@ -342,6 +348,24 @@ sched.cancelAll();
 
 ---
 
+## Lifecycle Protocol
+
+aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle protocol 會被未來的 `aitaskjs / aibridgejs / aiaudiojs` 等共用：
+
+| 動詞 | aifsmjs 對應 | 語意 |
+|---|---|---|
+| `createX()` | `createRuntime` / `createScheduler` / `defineMachine` / `setup` | 工廠 fn，回傳值即「實例」 |
+| `dispose()` | `runtime.dispose()` / `scheduler.cancelAll()` | 釋放資源；idempotent；post-dispose API 拋已知 error |
+| `reset()` | `runtime.reset()` | 把狀態歸零，不釋放資源 |
+| `on/off` | `runtime.subscribe(fn)` 回傳 unsubscribe | 訂閱模式；明寫 unsubscribe |
+| `AbortSignal` | `runtime.signal` / `after(_, _, { signal })` | 所有 long-running / async 任務的取消通道 |
+| Pure core | `step()` | 不碰 I/O、可序列化、可 replay |
+| Error 明寫 | `RuntimeDisposedError` / `UnknownGuardError` / `UnknownActionError` / `InvalidDefinitionError` | named error class，不靠 throw string |
+
+未來其他 ai\*js 套件遇到「該不該加 dispose？」「signal 怎麼接？」這類問題，以此表為 baseline。
+
+---
+
 ## AI-Agent Reading Guide
 
 > 此區塊為 LLM 與 code-search agent 量身設計，把不變量、型別、誤用模式集中於此。
@@ -365,6 +389,9 @@ sched.cancelAll();
 2. Snapshot frozen：dev mode 違反 freeze 立即拋錯。
 3. Guards never mutate context：違反者 PBT property #2 會抓到。
 4. Effects 永遠 fire-and-forget：runtime 不等 effect 完成才更新 snapshot。
+5. `dispose()` idempotent；post-dispose 呼叫 `send()` / `reset()` 拋 `RuntimeDisposedError`。
+6. `runtime.signal.aborted` 在 dispose 後永遠為 `true`；effect handler 拿到的 signal 即此。
+7. `reset()` 只重置 snapshot 與通知 listener，**不跑 entry actions**。
 
 ### Common misuses
 
@@ -377,7 +404,7 @@ sched.cancelAll();
 
 ### Machine-readable schema
 
-`MachineDef` 的 JSON schema 之後將發佈於 `dist/schema/machine.schema.json`。v1 階段尚未提供，但型別定義集中在 [src/core/types.ts](src/core/types.ts)，agent 可從 TS 型別直接推導。
+`MachineDef` 的 JSON schema 之後將發佈於 `dist/schema/machine.schema.json`。v1 階段尚未提供，但型別定義集中在 [src/fsm/types.ts](src/fsm/types.ts)，agent 可從 TS 型別直接推導。
 
 ---
 
@@ -405,7 +432,7 @@ sched.cancelAll();
 
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
-| Core size (gzip)           | ~2.5KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
+| Core size (gzip)           | ~2.8KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
 | Hierarchical states         | ❌ (v1)         | ✅                 | ❌                 | N/A               | ✅                 |
 | Async invoke / actor        | ❌              | ✅                 | ❌                 | N/A               | ❌                 |
 | Guard combinators           | ✅ and/or/not   | ✅ and/or/not      | ❌                 | N/A               | ❌                 |

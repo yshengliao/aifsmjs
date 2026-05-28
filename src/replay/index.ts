@@ -1,5 +1,5 @@
-import { step } from "../core/lifecycle.js";
-import type { Effect, Implementations, MachineDef, Snapshot } from "../core/types.js";
+import { step } from "../fsm/lifecycle.js";
+import type { Effect, Implementations, MachineDef, Snapshot } from "../fsm/types.js";
 
 export type ReplayResult<Ctx, States extends string> = Readonly<{
   snapshot: Snapshot<Ctx, States>;

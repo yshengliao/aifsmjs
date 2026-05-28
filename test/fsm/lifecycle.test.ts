@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { defineMachine, initialSnapshot } from "../../src/core/definition.js";
-import { UnknownActionError, step } from "../../src/core/lifecycle.js";
-import type { Implementations } from "../../src/core/types.js";
-import { assign } from "../../src/core/updater.js";
+import { defineMachine, initialSnapshot } from "../../src/fsm/definition.js";
+import { UnknownActionError, step } from "../../src/fsm/lifecycle.js";
+import type { Implementations } from "../../src/fsm/types.js";
+import { assign } from "../../src/fsm/updater.js";
 import { type Ctx, type Evt, makeImpl, trafficLight } from "../fixtures/traffic-light.js";
 
 describe("step — happy path", () => {

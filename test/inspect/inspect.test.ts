@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRuntime } from "../../src/core/runtime.js";
+import { createRuntime } from "../../src/fsm/runtime.js";
 import { type RecordedEntry, logger, persist, recorder } from "../../src/inspect/index.js";
 import {
   type Ctx,

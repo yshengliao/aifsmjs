@@ -21,8 +21,8 @@ export type {
 
 export { defineMachine, initialSnapshot, InvalidDefinitionError, setup } from "./definition.js";
 export { step, UnknownActionError } from "./lifecycle.js";
-export { createRuntime } from "./runtime.js";
-export { assign, mergeContext, createEnqueuer } from "./updater.js";
+export { createRuntime, RuntimeDisposedError } from "./runtime.js";
+export { assign, mergeContext } from "./updater.js";
 export { evalGuard, resolveGuard, UnknownGuardError } from "./evaluator.js";
 export { resolveTransitions } from "./resolver.js";
-export { createSnapshot, deepFreeze, freezeSnapshot, isPlainObject } from "./snapshot.js";
+export { createSnapshot, deepFreeze, freezeSnapshot } from "./snapshot.js";
