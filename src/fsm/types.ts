@@ -107,10 +107,58 @@ export type Middleware<Ctx, Evt, States extends string> = (
   next: () => void,
 ) => void;
 
+/**
+ * Payload of the `'transition'` runtime event — emitted after each `send()` or
+ * `reset()` that actually changed the snapshot value.
+ */
+export type RuntimeTransitionEvent<Ctx, Evt, States extends string> = Readonly<{
+  prev: Snapshot<Ctx, States>;
+  next: Snapshot<Ctx, States>;
+  event: Evt | ResetEvent;
+  effects: readonly Effect[];
+  changed: boolean;
+}>;
+
+/**
+ * Payload of the `'error'` runtime event — currently emitted for async effect
+ * handler rejections (which would otherwise become unhandled). Synchronous
+ * throws from effect handlers and middleware still propagate to the caller of
+ * `send()` / `reset()`.
+ */
+export type RuntimeErrorEvent<Evt> = Readonly<{
+  error: unknown;
+  event: Evt | ResetEvent | undefined;
+}>;
+
+export type RuntimeEventMap<Ctx, Evt, States extends string> = {
+  transition: RuntimeTransitionEvent<Ctx, Evt, States>;
+  error: RuntimeErrorEvent<Evt>;
+  dispose: void;
+};
+
 export interface Runtime<Ctx, Evt extends { type: string }, States extends string> {
   getSnapshot(): Snapshot<Ctx, States>;
+  /** Alias for `getSnapshot()`. */
+  snapshot(): Snapshot<Ctx, States>;
   send(event: Evt): Snapshot<Ctx, States>;
+  /**
+   * Predict whether sending `event` would fire a transition. Reuses
+   * `resolveTransitions` + `evalGuard` without applying any actions. Guards
+   * are expected to be pure; `can` then matches `send` for the same input.
+   */
+  can(event: Evt): boolean;
   subscribe(listener: (snap: Snapshot<Ctx, States>) => void): () => void;
+  /**
+   * EventTarget-like typed listener API. Returns an unsubscribe function.
+   * `options.signal` removes the listener when aborted; `options.once`
+   * removes the listener after the first invocation. After `dispose()`,
+   * `on()` is a no-op and returns a no-op unsubscribe.
+   */
+  on<K extends keyof RuntimeEventMap<Ctx, Evt, States>>(
+    type: K,
+    listener: (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void,
+    options?: { signal?: AbortSignal; once?: boolean },
+  ): () => void;
   /**
    * Re-initialise the runtime to the definition's initial snapshot. Triggers
    * subscribers but does NOT run entry actions (reset = re-birth, not

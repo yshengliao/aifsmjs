@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   InvalidDefinitionError,
+  createMachine,
   defineMachine,
   initialSnapshot,
   setup,
@@ -157,6 +158,46 @@ describe("setup() — curried builder with inferred States", () => {
         context: {},
         states: { a: {} },
       }),
+    ).toThrow(/not declared/);
+  });
+});
+
+describe("createMachine() — single-factory convenience", () => {
+  it("returns a runtime that behaves like defineMachine + createRuntime", () => {
+    type C = { n: number };
+    type E = { type: "INC" };
+    const runtime = createMachine<C, E, "a" | "b">(
+      {
+        id: "m",
+        initial: "a",
+        context: { n: 0 },
+        states: {
+          a: { on: { INC: { target: "b", actions: ["bump"] } } },
+          b: {},
+        },
+      },
+      { actions: { bump: assign(({ context }) => ({ n: context.n + 1 })) } },
+    );
+    expect(runtime.snapshot().value).toBe("a");
+    runtime.send({ type: "INC" });
+    expect(runtime.snapshot().value).toBe("b");
+    expect(runtime.snapshot().context.n).toBe(1);
+  });
+
+  it("validates the definition (rejects unknown initial state)", () => {
+    type C = Record<string, never>;
+    type E = { type: "X" };
+    expect(() =>
+      createMachine<C, E, "a">(
+        {
+          id: "bad",
+          // @ts-expect-error initial not in states
+          initial: "ghost",
+          context: {},
+          states: { a: {} },
+        },
+        {},
+      ),
     ).toThrow(/not declared/);
   });
 });

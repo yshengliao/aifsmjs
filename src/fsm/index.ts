@@ -22,7 +22,13 @@ export type {
 
 export { RESET_EVENT_TYPE } from "./types.js";
 
-export { defineMachine, initialSnapshot, InvalidDefinitionError, setup } from "./definition.js";
+export {
+  createMachine,
+  defineMachine,
+  initialSnapshot,
+  InvalidDefinitionError,
+  setup,
+} from "./definition.js";
 export { step, UnknownActionError } from "./lifecycle.js";
 export { createRuntime, RuntimeDisposedError } from "./runtime.js";
 export { assign, mergeContext } from "./updater.js";

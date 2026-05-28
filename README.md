@@ -4,24 +4,26 @@
 [![CI](https://github.com/yshengliao/aifsmjs/actions/workflows/ci.yml/badge.svg)](https://github.com/yshengliao/aifsmjs/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
-[![English](https://img.shields.io/badge/lang-English-blue.svg)](README.en.md)
+[![繁體中文](https://img.shields.io/badge/lang-繁體中文-red.svg)](README_ZHTW.md)
 
-> 一個小而嚴格的 FSM library，為**網頁遊戲開發**而生：把 lifecycle 寫成 pure `step()`，把 Chain-of-Responsibility 直覺收斂到 cross-cutting concerns（observe / persist / replay）—— 而非 transition 主流程。
+> A small, strict FSM library built for **web game development**. Lifecycle is a pure `step()` function. Chain-of-Responsibility intuition is reserved for cross-cutting concerns (observe / persist / replay), never for the transition core.
 
-**主要受眾**：用 PixiJS / Svelte 5 / 純 Canvas / WebGL 做網頁小遊戲、休閒遊戲、互動式網頁的開發者。場景例如：場景流轉（loading → menu → playing → result）、角色 AI 狀態、互動 UI 流程、教學引導步驟、回合制邏輯。Library 本身**環境中立**（pure core + adapter 邊界），browser、Node、Flutter WebView 都能跑；遊戲只是首要 use case。
+**Primary audience**: developers building browser-based games and interactive web experiences on PixiJS / Svelte 5 / plain Canvas / WebGL. Typical use cases: scene flow (loading → menu → playing → result), character AI state, interactive UI flows, tutorial steps, turn-based logic. The library itself is **environment-neutral** (pure core + adapter boundary) — browser, Node, and Flutter WebView all work; games are simply the first-class use case.
+
+> Traditional Chinese version: [README_ZHTW.md](README_ZHTW.md).
 
 ---
 
-## 為什麼有 aifsmjs
+## Why aifsmjs
 
-從 C# 帶著 CoR 慣性轉到 JS/TS 的人，通常會把 lifecycle 拆成可中止的 middleware chain，這在 FSM 領域會破壞 determinism 與 replay 能力。網頁遊戲對「可重放、可序列化、可在 worker 跑」的需求尤其重，aifsmjs 反其道：
+Developers coming from C# Chain-of-Responsibility instinctively wrap FSM lifecycle in a cancellable middleware chain. In FSM territory that breaks determinism and replay. Web games in particular need replayable, serializable, worker-friendly state, so aifsmjs goes the other way:
 
-- **Lifecycle 是 pure function**：`step(def, snapshot, event, impl)` 一次完成 `guards → exit → action → entry`，順序固定、不可中止、不可注入。
-- **CoR 思維只用在橫切層**：`inspect/` 提供 Koa-style middleware pipeline，但只能觀察 snapshot 與發出事件，**不能改 transition 結果**。
-- **Definition 純資料**：guards / actions / effects 用 string ref 引用，runtime 才注入實作。可序列化、可在 Web Worker 之間傳遞、可存 DB。
-- **PBT first-class**：內建 `fast-check` `fc.commands` adapter 與 6 條 generic property tests，市場目前沒有同類產品做這件事。
+- **Lifecycle is a pure function**: `step(def, snapshot, event, impl)` runs `guards → exit → action → entry` in a fixed, uninterruptible order.
+- **CoR intuition is reserved for cross-cutting layers**: `inspect/` provides a Koa-style middleware pipeline, but it can only observe — **never alter the transition outcome**.
+- **Definition is plain data**: guards / actions / effects are referenced by string; implementations are injected only at runtime. Serializable, transferable across Web Workers, persistable to a database.
+- **PBT is first-class**: built-in `fast-check` `fc.commands` adapter plus 6 generic property tests. No comparable library currently ships this.
 
-對應到既有生態：思路接近 Robot3 的 functional composition + XState v5 的 `and/or/not` guard 組合子 + `@xstate/store` v3 的 `enq.effect()` 雙軌副作用，core 實測 ~2.8KB ESM gzipped（v0.1.0），每個 opt-in subpath 獨立可 tree-shake。
+In ecosystem terms: closer to Robot3's functional composition + XState v5's `and/or/not` guard combinators + `@xstate/store` v3's `enq.effect()` dual-track side effects. The core measures ~2.8KB ESM gzipped (v0.1.0); every opt-in subpath is independently tree-shakeable.
 
 ---
 
@@ -37,7 +39,8 @@ import { setup, createRuntime, assign } from "aifsmjs";
 type Ctx = { ticks: number };
 type Evt = { type: "NEXT" };
 
-// 1. Definition 是純資料；setup<Ctx, Evt>() 後 States 由 states keys 自動推導
+// 1. Definition is plain data; setup<Ctx, Evt>() lets States be inferred from
+//    the keys of `states`, so you don't have to repeat them.
 const trafficLight = setup<Ctx, Evt>().defineMachine({
   id: "trafficLight",
   initial: "red",
@@ -49,20 +52,20 @@ const trafficLight = setup<Ctx, Evt>().defineMachine({
   },
 });
 
-// 2. Implementations 是 runtime 才注入的函式
+// 2. Implementations are injected only at runtime
 const runtime = createRuntime(trafficLight, {
   actions: {
     bump: assign(({ context }) => ({ ticks: context.ticks + 1 })),
   },
 });
 
-// 3. 互動
+// 3. Interact
 runtime.send({ type: "NEXT" });
 console.log(runtime.getSnapshot().value);   // "green"
 console.log(runtime.getSnapshot().context); // { ticks: 1 }
 ```
 
-> 也可以用 `defineMachine<Ctx, Evt, States>({...})` 直接傳三個型別參數（escape hatch；當你需要對 union event types 完全顯式控制時）。一般情況下 `setup().defineMachine()` 更省事。
+> The bare `defineMachine<Ctx, Evt, States>({...})` form is still available as an escape hatch when you need explicit control over union event types. In normal cases prefer `setup().defineMachine()`.
 
 ---
 
@@ -71,8 +74,8 @@ console.log(runtime.getSnapshot().context); // { ticks: 1 }
 ```
 ┌──────────────────────┐       ┌──────────────────────┐
 │  MachineDefinition   │       │   Implementations    │
-│  (純資料、可序列化)   │  +    │  (guards/actions/     │
-│  • states            │       │   effects fn map)    │
+│  (plain data, JSON)  │  +    │   (guards/actions/    │
+│  • states            │       │    effects fn map)   │
 │  • on / target       │       │                      │
 │  • string refs       │       │                      │
 └──────────┬───────────┘       └──────────┬───────────┘
@@ -81,74 +84,74 @@ console.log(runtime.getSnapshot().context); // { ticks: 1 }
                           ▼
               ┌────────────────────────┐
               │  step(def, snap, evt,  │  ← pure function
-              │       impl)            │     固定順序、不可中止
+              │       impl)            │     fixed order, uninterruptible
               └───────────┬────────────┘
                           ▼
               ┌────────────────────────┐
               │   { snapshot,          │
-              │     effects: [...] }   │     effects 由 caller
-              └───────────┬────────────┘     決定何時 dispatch
+              │     effects: [...] }   │     caller decides when
+              └───────────┬────────────┘     to dispatch effects
                           ▼
               ┌────────────────────────┐
-              │  createRuntime(...)    │  ← 薄包裝
+              │  createRuntime(...)    │  ← thin wrapper
               │  state holder + send   │
               └────────────────────────┘
 ```
 
-三個分層完全解耦：你可以單獨拿 `step()` 做 replay、或單獨拿 `MachineDefinition` 做 visualization，runtime 只是把這兩個黏起來的便利層。
+The three layers are fully decoupled: take `step()` alone for replay, take `MachineDefinition` alone for visualization, and `createRuntime` is just the convenience layer that glues them.
 
 ---
 
 ## Capabilities / Limitations
 
-| 會做（v1）                                          | 不會做                                            |
+| Will do (v1)                                        | Won't do                                          |
 | --------------------------------------------------- | ------------------------------------------------- |
 | Flat states + transitions                           | Hierarchical / compound states                    |
-| Guards（sync only）                                 | Async guards                                      |
-| Actions（assign + enqueue effects）                 | 在 action 內呼叫 async API（請放到 effect）        |
+| Guards (sync only)                                  | Async guards                                      |
+| Actions (assign + enqueue effects)                  | Async API inside an action (use an effect)        |
 | Fire-and-forget effects                             | Actor invocation / spawn                          |
-| Read-only inspect middleware                        | 可中止 transition 的 middleware                   |
-| `replay(initial, log, def, impl)` 純函式             | Time travel debugger（v2 再評估）                  |
-| `fast-check` `fc.commands` adapter                   | 自家 PBT framework                                 |
-| String ref + runtime injection                      | Definition 內直接綁 closure（會無法序列化）        |
-| Tree-shake friendly subpath exports                  | 從 root 一次 import 全部                           |
+| Read-only inspect middleware                        | Cancellable transition middleware                 |
+| `replay(initial, log, def, impl)` pure function     | Time-travel debugger (v2 candidate)               |
+| `fast-check` `fc.commands` adapter                   | Custom PBT framework                               |
+| String ref + runtime injection                      | Closures embedded in definition (breaks serialize) |
+| Tree-shake friendly subpath exports                  | Single root import for everything                 |
 
 ---
 
 ## Design Philosophy
 
 <details>
-<summary>為何 lifecycle 不能套 middleware（點開展開）</summary>
+<summary>Why lifecycle cannot be middleware (click to expand)</summary>
 
-UML statechart 與 SCXML 都規定 `exit → transition action → entry` 是 atomic sequence。一旦允許中間 handler 呼叫 `next()` 或丟錯中止，就會出現「進入新 state 但舊 state 沒 exit」的無效狀態，破壞：
+UML statecharts and SCXML both mandate `exit → transition action → entry` as an atomic sequence. The moment a middleware handler can call `next()` or throw to abort, you can land in an invalid state — "entered the new state but never exited the old one" — which destroys:
 
-1. **Determinism**：同一 event sequence 不再保證得到同一 snapshot。
-2. **Replay**：event log 無法在獨立環境重現結果。
-3. **PBT shrinking**：fast-check 的反例最小化前提是 deterministic state machine。
+1. **Determinism**: the same event sequence no longer guarantees the same snapshot.
+2. **Replay**: event logs cannot reproduce the same outcome in another environment.
+3. **PBT shrinking**: fast-check's counter-example minimization presumes a deterministic machine.
 
-XState v5 從 v4 的「actions 順序不穩」教訓走到 `predictableActionArguments` 不再需要存在（永遠 predictable），就是這個教訓。Spring StateMachine 把可中止的 Interceptor 標為「relatively deep internal feature」也是同一原因。
+XState v5 removed the `predictableActionArguments` flag (actions are now always predictable) precisely because of this lesson from v4. Spring StateMachine flags its cancellable Interceptor as a "relatively deep internal feature" for the same reason.
 
-所以 aifsmjs 把 CoR 的 chain 思維拆兩半：
+So aifsmjs splits the CoR chain instinct two ways:
 
-| 場景                | 處理方式                                            |
-| ------------------- | --------------------------------------------------- |
-| Guard 鏈式判斷       | `and/or/not` 三個 higher-order combinators          |
-| Action 多步驟順序    | `actions: [...]` array，按序執行、跑完為止          |
-| 跨橫切（log/persist）| `inspect/` middleware，僅讀，無中止能力             |
+| Use case                       | How it is handled                                       |
+| ------------------------------ | ------------------------------------------------------- |
+| Chained guard predicates       | `and/or/not` higher-order combinators                   |
+| Multi-step action sequencing   | `actions: [...]` array, runs in order to completion     |
+| Cross-cutting (log/persist)    | `inspect/` middleware — read-only, no cancel ability    |
 
 </details>
 
 <details>
-<summary>為何 definition 是純資料</summary>
+<summary>Why the definition is plain data</summary>
 
-只要 definition 含 closure，就無法：
+The moment definitions contain closures, you lose:
 
-- 透過 `JSON.stringify` 存 DB / localStorage
-- 透過 `postMessage` 傳到 Web Worker
-- 透過 visualizer 工具靜態分析 reachability
-- 透過 PBT adapter 自動產生 event arbitraries
+- `JSON.stringify` round-trip for DB / localStorage persistence
+- `postMessage` transfer to a Web Worker
+- Static reachability analysis by a visualizer tool
+- Auto-generated event arbitraries from a PBT adapter
 
-aifsmjs 走 XState v5 `setup().createMachine()` 雙階段路線：definition 用 string ref，`createRuntime()` 時才注入 fn map。Inline function 仍允許，但標為 escape hatch。
+aifsmjs follows the XState v5 two-phase pattern (`setup().createMachine()`): the definition uses string refs; the function map is injected at `createRuntime()`. Inline functions are still allowed but flagged as an escape hatch.
 
 </details>
 
@@ -166,7 +169,7 @@ function defineMachine<
 >(def: MachineDef<Ctx, Evt, States>): MachineDef<Ctx, Evt, States>;
 ```
 
-純資料 builder。會 freeze 整個 def 並驗證 `initial` 在 `states` 集合內。
+Pure data builder. Freezes the whole definition and validates that `initial` exists in the `states` map.
 
 ### `createRuntime(def, impl, opts?)`
 
@@ -188,9 +191,9 @@ interface Runtime<C, E, S> {
 }
 ```
 
-薄包裝。內部呼叫 `step()` 並 dispatch effects。`dispose()` 會 abort 內建 `AbortController`、清空 listeners，並讓後續的 `send()` / `reset()` 丟 `RuntimeDisposedError`。`reset()` 把 snapshot 拉回 `initialSnapshot(def)`、觸發 listeners，但**不會跑 entry actions**（reset 是「整個 runtime 回出生點」，不是 transition）。
+Thin wrapper. Internally calls `step()` and dispatches effects. `dispose()` aborts the built-in `AbortController`, clears listeners, and causes subsequent `send()` / `reset()` calls to throw `RuntimeDisposedError`. `reset()` rewinds the snapshot to `initialSnapshot(def)` and notifies subscribers, but **does not run entry actions** — reset is "the runtime is reborn", not a transition.
 
-`runtime.signal` 是這個 runtime 的生命週期 signal，會在 dispose 時 abort 一次。被傳進每個 `EffectHandler` 的 `args.signal`；外部整合（React unmount、game scene teardown）也可以 `runtime.signal.addEventListener("abort", ...)` 串自己的收尾。
+`runtime.signal` is the runtime's lifetime signal; it fires once on dispose. Every `EffectHandler` receives it via `args.signal`. External integrations (React unmount, game scene teardown) can attach `runtime.signal.addEventListener("abort", ...)` to chain their own cleanup.
 
 ### `step(def, snapshot, event, impl)`
 
@@ -203,7 +206,7 @@ function step<C, E, S>(
 ): { snapshot: Snapshot<C, S>; effects: readonly Effect[] };
 ```
 
-**Pure function**。整個 library 的 invariant 守護者。不會 dispatch effects、不會 mutate snapshot、不會丟錯——guard 沒過或 event 沒對應 transition 就回原 snapshot。
+**Pure function**. The invariant keeper for the whole library. It never dispatches effects, never mutates the snapshot, and never throws — a failing guard or unmapped event simply returns the original snapshot.
 
 ### `assign(updater)`
 
@@ -213,13 +216,13 @@ function assign<C, E>(
 ): Action<C, E>;
 ```
 
-純 context 更新 helper。回傳新 context（partial merge），不含副作用。
+Pure context update helper. Returns a partial that is merged into the context. No side effects.
 
 ---
 
 ## Opt-in Modules
 
-每個 opt-in 都是獨立 subpath，不引入則 tree-shake 完全清除。
+Each opt-in lives on its own subpath. If you don't import it, it is fully tree-shaken away.
 
 ### `aifsmjs/guards` — Guard combinators
 
@@ -233,7 +236,7 @@ const canCheckout = and([
 ]);
 ```
 
-`and/or/not` 對 sync guard 做短路求值。`stateIn(...states)` 是常用 sugar：「目前 state 在這群之內就通過」。
+`and/or/not` short-circuit over sync guards. `stateIn(...states)` is a sugar predicate: "current state is one of these".
 
 ### `aifsmjs/effects` — Fire-and-forget effects
 
@@ -242,11 +245,11 @@ import { type Action } from "aifsmjs";
 
 const checkout: Action<Ctx, Evt> = ({ context, enqueue }) => {
   enqueue.effect("trackAnalytics", { event: "checkout", ctx: context });
-  // 回傳值代表新 context（不回傳則沿用舊 context）
+  // Return value becomes the new context (omit to keep current context)
 };
 ```
 
-`enqueue.effect(type, payload)` 把副作用宣告排隊，由 `step()` 收集後回傳給 caller。Runtime 預設在 transition 完成後 dispatch；replay 模式下可關掉 dispatch，只做 snapshot fold。
+`enqueue.effect(type, payload)` queues a side-effect declaration. `step()` collects them and hands them back to the caller. Runtime dispatches after the transition; replay mode disables dispatch and keeps only the snapshot fold.
 
 ### `aifsmjs/inspect` — Read-only middleware
 
@@ -262,7 +265,7 @@ const runtime = createRuntime(def, impl, {
 });
 ```
 
-Koa-style `(ctx, next) => void` pipeline。`ctx` 是 `{ prev, next, event, effects }`，全部 `structuredClone + freeze`。**不能中止 transition**——`next()` 必呼叫，回傳值無語意。
+Koa-style `(ctx, next) => void` pipeline. `ctx` is `{ prev, next, event, effects }`, all `structuredClone`d and frozen. **Cannot cancel a transition** — `next()` must be called; the return value carries no meaning.
 
 ### `aifsmjs/replay` — Pure event log replay
 
@@ -270,14 +273,14 @@ Koa-style `(ctx, next) => void` pipeline。`ctx` 是 `{ prev, next, event, effec
 import { replay } from "aifsmjs/replay";
 
 const finalSnap = replay(initialSnapshot, eventLog, def, impl);
-// 等價於 eventLog.reduce((s, e) => step(def, s, e, impl).snapshot, initial)
+// Equivalent to eventLog.reduce((s, e) => step(def, s, e, impl).snapshot, initial)
 ```
 
-不會 dispatch effects。用於 PBT、time-travel debug、incident reproduction。
+Never dispatches effects. For PBT, time-travel debugging, and incident reproduction.
 
 ### `aifsmjs/pbt` — fast-check adapter
 
-> **需另裝 peer**：`pnpm add -D fast-check`（^3.20.0）。aifsmjs 把 fast-check 列為 optional peer dependency，使用 pbt 模組才需安裝。
+> **Install the peer**: `pnpm add -D fast-check` (^3.20.0). aifsmjs lists fast-check as an optional peer; you only need it when importing this subpath.
 
 ```typescript
 import fc from "fast-check";
@@ -293,7 +296,7 @@ fc.assert(
 );
 ```
 
-`properties.*` 提供 6 條 generic property（見 [Testing Strategy](#testing-strategy)）。fast-check 是 `peerDependenciesMeta.optional`，不裝就不用付。
+`properties.*` ships 6 generic properties (see [Testing Strategy](#testing-strategy)). `fast-check` is `peerDependenciesMeta.optional`; no install penalty if you don't use it.
 
 ### `aifsmjs/timer` — Cancellable delayed callbacks
 
@@ -302,139 +305,151 @@ import { after, createScheduler } from "aifsmjs/timer";
 
 // One-shot
 const handle = after(5000, () => runtime.send({ type: "TIMEOUT" }));
-handle.cancel(); // 還沒燒到的話，取消
+handle.cancel(); // cancels if not yet fired
 
-// 與 AbortSignal 整合
+// AbortSignal integration
 const ac = new AbortController();
 after(5000, () => runtime.send({ type: "TIMEOUT" }), { signal: ac.signal });
-ac.abort(); // 同樣取消
+ac.abort(); // also cancels
 
-// Scheduler：把一群 timers 綁在一起，destroy 時 cancelAll
+// Scheduler: bundle a group of timers and cancel them together on teardown
 const sched = createScheduler();
 sched.after(1000, () => {});
 sched.after(2000, () => {});
 sched.cancelAll();
 ```
 
-- 純包 `setTimeout` / `clearTimeout`，可注入測試替身（vitest fake timers 已驗證）
-- AbortSignal listener 用 `{ once: true }` 註冊，避免 leak
-- 與 FSM 本體解耦：你自己決定何時把 timer 燒出的事件 `runtime.send(...)`
+- Thin wrapper over `setTimeout` / `clearTimeout`, with injectable timer functions (validated by vitest fake timers)
+- AbortSignal listener registered with `{ once: true }` to avoid leaks
+- Decoupled from the FSM core: you decide when to forward a fired timer as `runtime.send(...)`
 
 ---
 
 ## Lifecycle Invariants
 
-`step()` 的固定順序（永遠如此，無法改變）：
+The fixed order inside `step()` (always, no escape hatch):
 
 ```
 1. resolveTransitions(def, snapshot.value, event)
-       → 拿到該 event 在此 state 上的候選 transitions
-2. evaluate guard on each candidate, in declaration order
-       → 第一個通過的 transition 被選中；都沒通過則回原 snapshot
-3. exit actions of old state         （目前 v1 為單層，無階層）
-4. transition.actions[]，按宣告順序循序執行
-       → 每個 action 可呼叫 enqueue.effect()
-       → 每個 action 的回傳 partial ctx 會 merge 到 current ctx
-5. entry actions of new state
-6. 回傳 { snapshot, effects } — caller 決定何時 dispatch effects
+       → candidate transitions for (state, event)
+2. evaluate guard on each candidate in declaration order
+       → first passing transition is chosen; otherwise the original snapshot is returned
+3. exit actions of the old state         (v1 is flat, no hierarchy)
+4. transition.actions[] run in declaration order
+       → each action may call enqueue.effect()
+       → each action's returned partial context is merged into the current context
+5. entry actions of the new state
+6. return { snapshot, effects } — the caller decides when to dispatch effects
 ```
 
-**契約**：
+**Contracts**:
 
-保證：
+Guarantees:
 
-- Guards 永遠 sync、永遠 pure（不 mutate ctx）
-- Actions 永遠跑完（無中止機制）
-- Effects 是宣告（type + payload），不是 callback —— 序列化友善
-- Snapshot 不可變；dev mode deep-freeze 偵錯，prod shallow 省效能
+- Guards are sync and pure (never mutate context)
+- Actions always run to completion (no cancel mechanism)
+- Effects are declarations (type + payload), not callbacks — serializable
+- Snapshot is immutable; dev mode deep-freezes for diagnostics, prod is shallow for speed
 
-不做：
+Non-goals:
 
-- async lifecycle hook
-- Inspect middleware 影響 transition 結果
+- No async lifecycle hook
+- Inspect middleware cannot alter the transition outcome
 
 ---
 
 ## Lifecycle Protocol
 
-aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle protocol 會被未來的 `aitaskjs / aibridgejs / aiaudiojs` 等共用：
+aifsmjs is the first package in a "minimal AI toolchain" family. This lifecycle protocol is meant to be reused by future packages (`aitaskjs / aibridgejs / aiaudiojs` and friends):
 
-| 動詞 | aifsmjs 對應 | 語意 |
+| Verb | aifsmjs equivalent | Semantics |
 |---|---|---|
-| `createX()` | `createRuntime` / `createScheduler` / `defineMachine` / `setup` | 工廠 fn，回傳值即「實例」 |
-| `dispose()` | `runtime.dispose()` / `scheduler.cancelAll()` | 釋放資源；idempotent；post-dispose API 拋已知 error |
-| `reset()` | `runtime.reset()` | 把狀態歸零，不釋放資源 |
-| `on/off` | `runtime.subscribe(fn)` 回傳 unsubscribe | 訂閱模式；明寫 unsubscribe |
-| `AbortSignal` | `runtime.signal` / `after(_, _, { signal })` | 所有 long-running / async 任務的取消通道 |
-| Pure core | `step()` | 不碰 I/O、可序列化、可 replay |
-| Error 明寫 | `RuntimeDisposedError` / `UnknownGuardError` / `UnknownActionError` / `InvalidDefinitionError` | named error class，不靠 throw string |
+| `createX()` | `createRuntime` / `createScheduler` / `defineMachine` / `setup` | Factory function returning the instance |
+| `dispose()` | `runtime.dispose()` / `scheduler.cancelAll()` | Release resources; idempotent; post-dispose API throws a known error |
+| `reset()` | `runtime.reset()` | Zero out state without releasing resources |
+| `on/off` | `runtime.subscribe(fn)` returning an unsubscribe fn | Subscription pattern; explicit unsubscribe |
+| `AbortSignal` | `runtime.signal` / `after(_, _, { signal })` | Cancellation channel for any long-running / async work |
+| Pure core | `step()` | No I/O, serializable, replayable |
+| Explicit errors | `RuntimeDisposedError` / `UnknownGuardError` / `UnknownActionError` / `InvalidDefinitionError` | Named error classes, never bare `throw "string"` |
 
-未來其他 ai\*js 套件遇到「該不該加 dispose？」「signal 怎麼接？」這類問題，以此表為 baseline。
+When future ai\*js packages ask "should this have a dispose?" or "where does the signal plug in?", this table is the baseline.
+
+---
+
+## Design choices: divergence from common patterns
+
+aifsmjs ships a few opinionated calls that look different from the typical FSM library. The rationale below explains what we chose and why, so readers coming from XState, statecharts, or general event-emitter libraries can skip the source dive.
+
+- **`send()` is synchronous, returning `Snapshot` instead of `Promise<Snapshot>`.** The pure `step()` core is sync by construction so that `replay(initial, log)` and PBT shrinking remain trivial. Effect handlers may still be async; the runtime fires them and forwards async rejections to the `'error'` event channel. If you need to await effect completion, build a small wrapper that returns `Promise.all` over your handler results.
+- **Guards and reducers are sync.** A non-deterministic guard would break the PBT determinism property (#1 in the generic suite). Move async predicates into events: send `FETCH_REQUEST`, then later `FETCH_DONE` with the resolved value as payload.
+- **Effects are descriptors, not inline callbacks.** Actions enqueue `{ type, payload }` via `enqueue.effect(...)`; the runtime collects them and the dispatcher invokes user handlers. This keeps machine definitions serializable (JSON round-trippable when no inline functions are used), enables `replay()` to fold an event log into the same snapshot, and lets `inspect/persist` middleware capture effects for audit logs.
+- **Two factory paths coexist.** `setup<Ctx, Evt>().defineMachine(...)` is the type-friendly form (States inferred from `keyof states`). `createMachine(def, impl, opts?)` is the spec-style single-factory shortcut from the ai*js ecosystem review. Plain `defineMachine<Ctx, Evt, States>(def)` remains for explicit generic control. Pick whichever reads best at the call site.
+- **`subscribe(listener)` and `on(type, fn, { signal, once })` both exist.** The typed `on()` matches the platform `EventTarget` semantics (signal + once) and emits `'transition'`, `'error'`, `'dispose'`. The older `subscribe()` keeps the React `useSyncExternalStore` shape — pass it directly. They are not exclusive.
 
 ---
 
 ## AI-Agent Reading Guide
 
-> 此區塊為 LLM 與 code-search agent 量身設計，把不變量、型別、誤用模式集中於此。
+> This section is for LLMs and code-search agents. Invariants, types, and misuse patterns are concentrated here.
 
 ### Serializable fields
 
-下列欄位皆為 plain data，可 `JSON.stringify` round-trip：
+The following are plain data, safe to `JSON.stringify` round-trip:
 
-- `MachineDef` 全結構（前提：未用 inline fn）
-- `Snapshot` 全結構（前提：`context` 為 plain data）
-- `Effect` 全結構（`{ type: string; payload?: unknown }`）
+- The entire `MachineDef` (provided no inline functions are used)
+- The entire `Snapshot` (provided `context` is plain data)
+- The entire `Effect` (`{ type: string; payload?: unknown }`)
 
-下列**不可序列化**，會破壞 PBT/replay：
+The following are **not serializable** and will break PBT/replay:
 
-- `Implementations` 內所有 fn
-- Middleware closure
+- Every function inside `Implementations`
+- Middleware closures
 
-### Invariants（請勿違反）
+### Invariants (do not violate)
 
-1. `step()` 是 pure：對同 `(def, snapshot, event, impl)` 必回相同 `{ snapshot, effects }`。
-2. Snapshot frozen：dev mode 違反 freeze 立即拋錯。
-3. Guards never mutate context：違反者 PBT property #2 會抓到。
-4. Effects 永遠 fire-and-forget：runtime 不等 effect 完成才更新 snapshot。
-5. `dispose()` idempotent；post-dispose 呼叫 `send()` / `reset()` 拋 `RuntimeDisposedError`。
-6. `runtime.signal.aborted` 在 dispose 後永遠為 `true`；effect handler 拿到的 signal 即此。
-7. `reset()` 只重置 snapshot 與通知 listener，**不跑 entry actions**；listeners 只在 `prev.value !== initial.value` 時被通知（與 `send()` 對齊）。Middleware 永遠看得到該次呼叫（含 `changed: false`）。
-8. `MiddlewareContext.event` 是 `Evt | ResetEvent`；無事件的 `reset()` 會塞入 `RESET_EVENT_TYPE` (`"@@aifsmjs/RESET"`) 哨兵。
+1. `step()` is pure: identical `(def, snapshot, event, impl)` always returns identical `{ snapshot, effects }`.
+2. Snapshots are frozen: in dev mode any mutation throws immediately.
+3. Guards never mutate context: violators are caught by PBT property #2.
+4. Effects are always fire-and-forget: the runtime never waits for an effect before updating the snapshot.
+5. `dispose()` is idempotent; post-dispose `send()` / `reset()` throws `RuntimeDisposedError`.
+6. `runtime.signal.aborted` is `true` for the rest of time once disposed; the effect handler's `signal` is the same one.
+7. `reset()` only resets the snapshot and notifies listeners — it does **not** run entry actions. Listeners are notified only when `prev.value !== initial.value` (parity with `send()`). Middleware always observes the call (possibly with `changed: false`).
+8. `MiddlewareContext.event` is typed `Evt | ResetEvent`; a `reset()` without an event injects the `RESET_EVENT_TYPE` sentinel (`"@@aifsmjs/RESET"`).
 
 ### Common misuses
 
-| 反模式                                              | 正確寫法                                                |
-| --------------------------------------------------- | ------------------------------------------------------- |
-| 在 guard 內呼叫 `fetch()` 等 async API              | 把 async 改寫成 event：先送 `FETCH_REQUEST`，handler 完成後送 `FETCH_DONE` |
-| 在 action 內 `setTimeout` 後 mutate context          | 改用 `enqueue.effect("delayedThing", ...)`              |
-| 用 middleware 攔截並改變 next state                 | 不可能；middleware 為 read-only。改寫成 guard。           |
-| Definition 內直接寫 inline fn（可行但破壞序列化）   | 拆出 string ref，於 `createRuntime` 注入                |
+| Anti-pattern                                              | Correct form                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------- |
+| Calling `fetch()` (or any async API) inside a guard        | Rewrite as events: send `FETCH_REQUEST`, then `FETCH_DONE`    |
+| `setTimeout`-and-mutate inside an action                   | Use `enqueue.effect("delayedThing", ...)`                     |
+| Using middleware to alter the next state                   | Not possible — middleware is read-only. Rewrite as a guard.   |
+| Inline functions inside a definition (works but breaks serialize) | Pull out as string refs, inject at `createRuntime`            |
 
 ### Machine-readable schema
 
-`MachineDef` 的 JSON schema 之後將發佈於 `dist/schema/machine.schema.json`。v1 階段尚未提供，但型別定義集中在 [src/fsm/types.ts](src/fsm/types.ts)，agent 可從 TS 型別直接推導。
+A JSON schema for `MachineDef` will ship at `dist/schema/machine.schema.json`. Not yet available in v1; types live in [src/fsm/types.ts](src/fsm/types.ts) for agents to derive from.
 
 ---
 
 ## Testing Strategy
 
-例子驅動為主，PBT 補強。借鑑 jssm 的教訓：「3000+ tests / 100% coverage」中只有 < 12% coverage 來自 stochastic tests，其餘來自 example specs。
+Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" turns out to have < 12% coverage from stochastic tests — the rest is example specs.
 
-- **Example tests**（vitest）：對每個 src module 寫 happy path + 邊界 + error message 三類。
-- **PBT smoke**：每條 generic property 跑 50 runs，作為 invariant guard，不追求 coverage。
-- **CI 強制門檻**：`@vitest/coverage-v8` 設 **100% statements / 100% lines / 100% functions / ≥90% branches**。少數 defensive invariant-guard 分支（例如 runtime determinism mismatch）標 `/* v8 ignore */` 並寫明原因。
-- **Size budget**：`scripts/check-size.mjs` 在 CI 檢查每個 subpath gzip 大小，超過預算（core ≤3 KB、replay ≤1.6 KB、pbt ≤4.5 KB、其他 ≤1 KB）即 fail。
+- **Example tests** (vitest): for every src module, write happy path + edge + error-message triplets.
+- **PBT smoke**: each generic property runs 50 iterations as an invariant guard, not as a coverage source.
+- **CI-enforced thresholds**: `@vitest/coverage-v8` is wired to **100% statements / 100% lines / 100% functions / ≥90% branches**. The few defensive invariant-guard branches (e.g. runtime determinism mismatch) carry `/* v8 ignore */` annotations with rationale.
+- **Size budget**: `scripts/check-size.mjs` enforces per-subpath gzip caps in CI — core ≤3 KB, replay ≤1.6 KB, pbt ≤4.5 KB, others ≤1 KB. Exceeding any cap fails the build.
 
-### 內建的 6 條 generic properties
+### The 6 built-in generic properties
 
-| #   | Property                          | 一句話                                              |
-| --- | --------------------------------- | --------------------------------------------------- |
-| 1   | snapshotAlwaysFrozen              | 任意 event 序列後，snapshot 仍 frozen               |
-| 2   | unknownEventNoOp                  | 未宣告 event 不會改變 snapshot                      |
-| 3   | reachableStatesSubsetDeclared     | 跑到的所有 state 必在 `def.states` 集合內           |
-| 4   | replayEqualsFold                  | `replay(init, log)` 等價於 `events.reduce(step)`    |
-| 5   | guardsFalseNoTransition           | 所有 guards 失敗時 state 不變                       |
-| 6   | assignDoesNotMutate               | `assign` 不修改前一個 ctx                           |
+| #   | Property                          | One-liner                                                |
+| --- | --------------------------------- | -------------------------------------------------------- |
+| 1   | snapshotAlwaysFrozen              | After any event sequence, the snapshot remains frozen    |
+| 2   | unknownEventNoOp                  | Undeclared events do not change the snapshot             |
+| 3   | reachableStatesSubsetDeclared     | Every reachable state belongs to `def.states`            |
+| 4   | replayEqualsFold                  | `replay(init, log)` equals `events.reduce(step)`         |
+| 5   | guardsFalseNoTransition           | When all guards fail, the state is unchanged              |
+| 6   | assignDoesNotMutate               | `assign` never modifies the previous context             |
 
 ---
 
@@ -446,8 +461,8 @@ aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle 
 | Hierarchical states         | No (v1)        | Yes               | No                | N/A               | Yes               |
 | Async invoke / actor        | No             | Yes               | No                | N/A               | No                |
 | Guard combinators           | and/or/not     | and/or/not        | No                | N/A               | No                |
-| Effects 雙軌                | enqueue        | enqueueActions    | reduce/action     | enq.effect()      | array of names    |
-| Inspect / observe           | read-only      | inspect API       | No                | 社群提案中        | watch ctx         |
+| Effects dual-track          | enqueue        | enqueueActions    | reduce/action     | enq.effect()      | array of names    |
+| Inspect / observe           | read-only      | inspect API       | No                | proposed          | watch ctx         |
 | Serializable definition     | Yes            | Yes               | Partial           | Partial           | Yes               |
 | fast-check adapter          | built-in       | No                | No                | No                | No                |
 | Tree-shake subpath imports  | Yes            | Partial           | Yes               | Yes               | Yes               |
@@ -456,14 +471,14 @@ aifsmjs 是「極簡 AI 工具鏈」家族的第一個套件，這條 lifecycle 
 
 ## Roadmap
 
-| 版本 | 範圍                                                              |
-| ---- | ----------------------------------------------------------------- |
-| v0.1 | core + guards + effects + inspect + replay + pbt（本次發佈）       |
-| v0.2 | Hierarchical / compound states，含 entry/exit 階層順序             |
-| v0.3 | Parallel state regions                                             |
-| v0.4 | Actor invocation（async）與 spawn                                  |
-| v0.5 | `aifsmjs-bridge-bitecs` / `aifsmjs-bridge-pixi`（獨立 sub-package） |
-| v1.0 | API freeze 與 stability guarantee                                  |
+| Version | Scope                                                              |
+| ------- | ------------------------------------------------------------------ |
+| v0.1    | core + guards + effects + inspect + replay + pbt (this release)    |
+| v0.2    | Hierarchical / compound states, including entry/exit ordering       |
+| v0.3    | Parallel state regions                                              |
+| v0.4    | Actor invocation (async) and spawn                                  |
+| v0.5    | `aifsmjs-bridge-bitecs` / `aifsmjs-bridge-pixi` (separate sub-packages) |
+| v1.0    | API freeze and stability guarantee                                  |
 
 ---
 

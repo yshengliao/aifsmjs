@@ -214,6 +214,164 @@ describe("runtime lifecycle — dispose / reset / signal", () => {
     expect(middlewareEvent?.type).toBe("RESET");
   });
 
+  it("snapshot() is an alias for getSnapshot()", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    expect(runtime.snapshot()).toBe(runtime.getSnapshot());
+    runtime.send({ type: "NEXT" });
+    expect(runtime.snapshot()).toBe(runtime.getSnapshot());
+  });
+
+  it("can(event) predicts whether send would fire a transition", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    expect(runtime.can({ type: "NEXT" })).toBe(true);
+    expect(runtime.can({ type: "RESET" })).toBe(false); // not declared on red
+    runtime.send({ type: "EMERGENCY" }); // → halt
+    expect(runtime.can({ type: "NEXT" })).toBe(false); // not declared on halt
+    expect(runtime.can({ type: "RESET" })).toBe(true);
+  });
+
+  it("can() returns false after dispose", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    runtime.dispose();
+    expect(runtime.can({ type: "NEXT" })).toBe(false);
+  });
+
+  it("can() returns false for guarded transitions whose guards reject", () => {
+    type C = { open: boolean };
+    type E = { type: "GO" };
+    const def = trafficLight; // not used; redefine locally
+    void def;
+    const local = createRuntime<C, E, "a" | "b">(
+      {
+        id: "g",
+        initial: "a",
+        context: { open: false },
+        states: {
+          a: { on: { GO: { target: "b", guard: "isOpen" } } },
+          b: {},
+        },
+      },
+      {
+        guards: { isOpen: ({ context }) => context.open },
+      },
+    );
+    expect(local.can({ type: "GO" })).toBe(false);
+  });
+
+  it("on('transition') fires when send changes state", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const events: string[] = [];
+    runtime.on("transition", (e) => {
+      events.push(`${e.prev.value}->${e.next.value}`);
+    });
+    runtime.send({ type: "NEXT" });
+    runtime.send({ type: "NEXT" });
+    expect(events).toEqual(["red->green", "green->yellow"]);
+  });
+
+  it("on('transition') skips no-op events", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const fn = vi.fn();
+    runtime.on("transition", fn);
+    runtime.send({ type: "GHOST" as unknown as "NEXT" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("on('dispose') fires once when runtime is disposed", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const fn = vi.fn();
+    runtime.on("dispose", fn);
+    runtime.dispose();
+    runtime.dispose(); // idempotent — listener should not fire again
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("on({once}) removes the listener after first call", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const fn = vi.fn();
+    runtime.on("transition", fn, { once: true });
+    runtime.send({ type: "NEXT" });
+    runtime.send({ type: "NEXT" });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("on({signal}) removes the listener when signal aborts", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    const fn = vi.fn();
+    runtime.on("transition", fn, { signal: ac.signal });
+    runtime.send({ type: "NEXT" });
+    ac.abort();
+    runtime.send({ type: "NEXT" });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("on({signal}) is a no-op when signal is already aborted", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    ac.abort();
+    const fn = vi.fn();
+    const off = runtime.on("transition", fn, { signal: ac.signal });
+    expect(typeof off).toBe("function");
+    off(); // exercise the no-op unsubscribe
+    runtime.send({ type: "NEXT" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("can() handles array-of-transitions states (yellow → fallback)", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    runtime.send({ type: "NEXT" }); // red → green
+    runtime.send({ type: "NEXT" }); // green → yellow (ticks=2, even)
+    // yellow.on.NEXT is an array; ticksOdd guard fails (even), fallback has no guard
+    expect(runtime.can({ type: "NEXT" })).toBe(true);
+  });
+
+  it("on('error') fires for async effect handler rejections", async () => {
+    const errors: unknown[] = [];
+    const runtime = createRuntime(trafficLight, {
+      ...makeImpl(),
+      effects: {
+        trackTransition: async () => {
+          throw new Error("boom");
+        },
+        logEnter: () => {},
+      },
+    });
+    runtime.on("error", (e) => {
+      errors.push(e.error);
+    });
+    runtime.send({ type: "NEXT" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as Error).message).toBe("boom");
+  });
+
+  it("on() returned unsubscribe removes the listener", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const fn = vi.fn();
+    const off = runtime.on("transition", fn);
+    off();
+    runtime.send({ type: "NEXT" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("on() after dispose is a no-op", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    runtime.dispose();
+    const fn = vi.fn();
+    const off = runtime.on("transition", fn);
+    expect(typeof off).toBe("function");
+    off(); // exercise the no-op
+  });
+
+  it("subscribe() after dispose returns a no-op unsubscribe that is safe to call", () => {
+    const runtime = createRuntime(trafficLight, makeImpl());
+    runtime.dispose();
+    const off = runtime.subscribe(() => {});
+    expect(() => off()).not.toThrow();
+  });
+
   it("reset() without event uses the @@aifsmjs/RESET sentinel", () => {
     let middlewareEvent: { type: string } | undefined;
     const runtime = createRuntime(trafficLight, makeImpl(), {

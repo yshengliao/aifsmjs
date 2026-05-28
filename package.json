@@ -73,8 +73,10 @@
   "files": [
     "dist",
     "README.md",
-    "README.en.md",
-    "LICENSE"
+    "README_ZHTW.md",
+    "LICENSE",
+    "llms.txt",
+    "llms-full.txt"
   ],
   "scripts": {
     "build": "tsup",
@@ -85,6 +87,8 @@
     "typecheck": "tsc --noEmit",
     "verify:exports": "node scripts/verify-exports.mjs",
     "check:size": "node scripts/check-size.mjs",
+    "build:llms": "node scripts/build-llms-full.mjs",
+    "verify:llms": "node scripts/build-llms-full.mjs && git diff --exit-code -- llms-full.txt",
     "coverage": "vitest run --coverage",
     "example:traffic-light": "tsx examples/01-traffic-light/index.ts",
     "example:approval": "tsx examples/02-approval-workflow/index.ts",

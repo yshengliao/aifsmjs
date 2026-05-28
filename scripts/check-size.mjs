@@ -10,7 +10,10 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const budgets = {
-  "dist/index.js": 3_000,
+  // Core grew to ~3.3 KB after adding the EventTarget-style on(), can(), and
+  // snapshot() spec-aligned APIs in v0.1.1. Budget bumped to 3500 B with
+  // headroom for the next opt-in additions; tighten in v0.2 if room reclaimed.
+  "dist/index.js": 3_500,
   "dist/guards/index.js": 1_000,
   "dist/effects/index.js": 1_000,
   "dist/inspect/index.js": 1_000,

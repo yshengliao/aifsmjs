@@ -1,5 +1,13 @@
+import { createRuntime } from "./runtime.js";
 import { freezeSnapshot } from "./snapshot.js";
-import type { MachineDef, Snapshot, StateDef } from "./types.js";
+import type {
+  Implementations,
+  MachineDef,
+  Runtime,
+  RuntimeOptions,
+  Snapshot,
+  StateDef,
+} from "./types.js";
 
 export class InvalidDefinitionError extends Error {
   constructor(message: string) {
@@ -112,4 +120,22 @@ export function initialSnapshot<Ctx, Evt extends { type: string }, States extend
     context: def.context,
     status: isFinal ? ("final" as const) : ("active" as const),
   });
+}
+
+/**
+ * Convenience factory that composes `defineMachine` and `createRuntime` in
+ * one call for the common case where you do not need to keep the machine
+ * definition around for serialization or sharing.
+ *
+ * For type inference over `States` from `keyof states`, prefer
+ * `setup<Ctx, Evt>().defineMachine(...)` then pass the result to
+ * `createRuntime` separately. `createMachine` is the spec-style entry point
+ * documented in the ai*js ecosystem review.
+ */
+export function createMachine<Ctx, Evt extends { type: string }, States extends string>(
+  def: MachineDef<Ctx, Evt, States>,
+  impl: Implementations<Ctx, Evt>,
+  opts?: RuntimeOptions<Ctx, Evt, States>,
+): Runtime<Ctx, Evt, States> {
+  return createRuntime(defineMachine(def), impl, opts ?? {});
 }

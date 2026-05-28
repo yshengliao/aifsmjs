@@ -1,4 +1,5 @@
 import { initialSnapshot } from "./definition.js";
+import { evalGuard } from "./evaluator.js";
 import { step } from "./lifecycle.js";
 import { deepFreeze } from "./snapshot.js";
 import {
@@ -9,8 +10,12 @@ import {
   RESET_EVENT_TYPE,
   type ResetEvent,
   type Runtime,
+  type RuntimeErrorEvent,
+  type RuntimeEventMap,
   type RuntimeOptions,
+  type RuntimeTransitionEvent,
   type Snapshot,
+  type TransitionDef,
 } from "./types.js";
 
 export class RuntimeDisposedError extends Error {
@@ -41,23 +46,6 @@ function composeMiddleware<Ctx, Evt, States extends string>(
   };
 }
 
-function dispatchEffects<Ctx, Evt>(
-  effects: readonly Effect[],
-  impl: Implementations<Ctx, Evt>,
-  context: Ctx,
-  event: Evt,
-  signal: AbortSignal,
-): void {
-  if (!impl.effects || effects.length === 0) return;
-  for (const eff of effects) {
-    const handler = impl.effects[eff.type];
-    if (handler) {
-      // Fire-and-forget; we never await the result.
-      void handler(eff, { context, event, signal });
-    }
-  }
-}
-
 /**
  * Build a thin stateful runtime around a machine. `send()` calls `step()`,
  * runs the read-only middleware pipeline, dispatches effects, and notifies
@@ -76,6 +64,25 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
   const shouldDispatch = opts.dispatchEffects !== false;
   const controller = new AbortController();
   let disposed = false;
+
+  // Typed event listeners for the EventTarget-like on() API.
+  type EventListeners = {
+    [K in keyof RuntimeEventMap<Ctx, Evt, States>]: Set<
+      (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void
+    >;
+  };
+  const eventListeners: EventListeners = {
+    transition: new Set(),
+    error: new Set(),
+    dispose: new Set(),
+  };
+
+  function emit<K extends keyof RuntimeEventMap<Ctx, Evt, States>>(
+    type: K,
+    payload: RuntimeEventMap<Ctx, Evt, States>[K],
+  ): void {
+    for (const fn of eventListeners[type]) fn(payload);
+  }
 
   function notify() {
     for (const l of listeners) l(snapshot);
@@ -98,6 +105,27 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     middlewareChain(mwCtx, () => {});
   }
 
+  function dispatchEffects(
+    effects: readonly Effect[],
+    context: Ctx,
+    event: Evt | ResetEvent,
+  ): void {
+    if (!impl.effects || effects.length === 0) return;
+    for (const eff of effects) {
+      const handler = impl.effects[eff.type];
+      if (!handler) continue;
+      // Sync throws still propagate to the caller of send(); async rejections
+      // surface on the 'error' event channel instead of becoming unhandled.
+      const r = handler(eff, { context, event: event as Evt, signal: controller.signal });
+      if (r instanceof Promise) {
+        r.catch((err: unknown) => {
+          const payload: RuntimeErrorEvent<Evt> = { error: err, event };
+          emit("error", payload);
+        });
+      }
+    }
+  }
+
   function send(event: Evt): Snapshot<Ctx, States> {
     if (disposed) throw new RuntimeDisposedError();
     const prev = snapshot;
@@ -107,10 +135,20 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     runMiddleware(prev, event, result.effects, result.changed);
 
     if (shouldDispatch) {
-      dispatchEffects(result.effects, impl, snapshot.context, event, controller.signal);
+      dispatchEffects(result.effects, snapshot.context, event);
     }
 
-    if (result.changed) notify();
+    if (result.changed) {
+      notify();
+      const payload: RuntimeTransitionEvent<Ctx, Evt, States> = {
+        prev,
+        next: snapshot,
+        event,
+        effects: result.effects,
+        changed: true,
+      };
+      emit("transition", payload);
+    }
     return snapshot;
   }
 
@@ -118,14 +156,59 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     if (disposed) throw new RuntimeDisposedError();
     const prev = snapshot;
     snapshot = initialSnapshot(def);
-    // Notify only when the state value actually changed, mirroring send().
-    // `prev.context !== snapshot.context` would always be true (new ref from
-    // initialSnapshot) so we compare on `value` only.
     const changed = prev.value !== snapshot.value;
     const triggerEvent: Evt | ResetEvent = event ?? RESET_EVENT;
     runMiddleware(prev, triggerEvent, [], changed);
-    if (changed) notify();
+    if (changed) {
+      notify();
+      const payload: RuntimeTransitionEvent<Ctx, Evt, States> = {
+        prev,
+        next: snapshot,
+        event: triggerEvent,
+        effects: [],
+        changed: true,
+      };
+      emit("transition", payload);
+    }
     return snapshot;
+  }
+
+  function can(event: Evt): boolean {
+    if (disposed || snapshot.status === "final") return false;
+    const state = def.states[snapshot.value];
+    /* v8 ignore next — defensive: snapshot.value always corresponds to a declared state. */
+    if (!state) return false;
+    const candidates = state.on?.[event.type];
+    if (!candidates) return false;
+    const list: readonly TransitionDef<Ctx, Evt, States>[] = Array.isArray(candidates)
+      ? candidates
+      : [candidates as TransitionDef<Ctx, Evt, States>];
+    for (const t of list) {
+      if (!t.guard) return true;
+      if (evalGuard(t.guard, snapshot.context, event, impl, snapshot.value)) return true;
+    }
+    return false;
+  }
+
+  function on<K extends keyof RuntimeEventMap<Ctx, Evt, States>>(
+    type: K,
+    listener: (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void,
+    options?: { signal?: AbortSignal; once?: boolean },
+  ): () => void {
+    if (disposed || options?.signal?.aborted) return () => {};
+    const target = eventListeners[type];
+    let wrapped: (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void = listener;
+    if (options?.once) {
+      wrapped = (payload) => {
+        target.delete(wrapped);
+        listener(payload);
+      };
+    }
+    target.add(wrapped);
+    if (options?.signal) {
+      options.signal.addEventListener("abort", () => target.delete(wrapped), { once: true });
+    }
+    return () => target.delete(wrapped);
   }
 
   function dispose(): void {
@@ -133,13 +216,18 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     disposed = true;
     controller.abort();
     listeners.clear();
+    emit("dispose", undefined as RuntimeEventMap<Ctx, Evt, States>["dispose"]);
+    for (const set of Object.values(eventListeners)) set.clear();
   }
 
   return {
     getSnapshot: () => snapshot,
+    snapshot: () => snapshot,
     send,
+    can,
     reset,
     dispose,
+    on,
     get disposed() {
       return disposed;
     },
