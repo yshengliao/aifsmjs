@@ -10,7 +10,6 @@ import {
   RESET_EVENT_TYPE,
   type ResetEvent,
   type Runtime,
-  type RuntimeErrorEvent,
   type RuntimeEventMap,
   type RuntimeOptions,
   type RuntimeTransitionEvent,
@@ -22,6 +21,32 @@ export class RuntimeDisposedError extends Error {
   constructor() {
     super("aifsmjs: runtime has been disposed; send()/reset() are not allowed");
     this.name = "RuntimeDisposedError";
+  }
+}
+
+/**
+ * Thrown by `send()` / `reset()` when a sub-machine init or dispose throws.
+ *
+ * Invariants:
+ * - `phase: "init"` — child constructor threw. Parent snapshot was rolled
+ *   back to `prev`; no middleware ran; no `'transition'` emitted; no effects.
+ * - `phase: "dispose"` — previous child's `dispose()` threw during transition.
+ *   Parent snapshot was rolled back to `prev`; child reference is cleared.
+ * - Never thrown from `runtime.dispose()` cascade (never-throws contract).
+ *
+ * @since 0.3.0
+ */
+export class SubMachineError extends Error {
+  readonly parentState: string;
+  readonly phase: "init" | "dispose";
+  override readonly cause: unknown;
+
+  constructor(parentState: string, phase: "init" | "dispose", cause: unknown) {
+    super(`aifsmjs: sub-machine ${phase} failed at parent state "${parentState}"`, { cause });
+    this.name = "SubMachineError";
+    this.parentState = parentState;
+    this.phase = phase;
+    this.cause = cause; // belt-and-suspenders: legacy bundlers ignore ES2022 cause option
   }
 }
 
@@ -64,8 +89,12 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
   const shouldDispatch = opts.dispatchEffects !== false;
   const controller = new AbortController();
   let disposed = false;
+  // §3.1 sub-machine state. childRuntime is the live child; childAbortCleanup
+  // detaches the parent-abort listener attached by wireChildAbort. Both are
+  // cleared together whenever the child is replaced or disposed (P1-3 fix).
+  let childRuntime: Runtime<unknown, { type: string }, string> | undefined;
+  let childAbortCleanup: (() => void) | undefined;
 
-  // Typed event listeners for the EventTarget-like on() API.
   type EventListeners = {
     [K in keyof RuntimeEventMap<Ctx, Evt, States>]: Set<
       (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void
@@ -76,10 +105,6 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     error: new Set(),
     dispose: new Set(),
   };
-
-  // Track detach functions for abort listeners we attach to external signals
-  // in on({ signal }). dispose() removes them so the external signal does not
-  // keep wrapped listeners alive past the runtime's lifetime.
   const externalAbortCleanups = new Set<() => void>();
 
   function emit<K extends keyof RuntimeEventMap<Ctx, Evt, States>>(
@@ -90,9 +115,6 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
   }
 
   function notify(committed?: Snapshot<Ctx, States>) {
-    // Capture the snapshot value FIRST so a subscriber that synchronously
-    // calls `send()` and reassigns the outer `snapshot` cannot bleed into
-    // the value other subscribers see in the same notify() pass.
     const captured = committed ?? snapshot;
     for (const l of listeners) l(captured);
   }
@@ -104,14 +126,7 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     changed: boolean,
   ) {
     if (!middlewareChain) return;
-    const mwCtx = deepFreeze({
-      prev,
-      next: snapshot,
-      event,
-      effects,
-      changed,
-    });
-    middlewareChain(mwCtx, () => {});
+    middlewareChain(deepFreeze({ prev, next: snapshot, event, effects, changed }), () => {});
   }
 
   function dispatchEffects(effects: readonly Effect[], context: Ctx, event: Evt): void {
@@ -119,15 +134,93 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     for (const eff of effects) {
       const handler = impl.effects[eff.type];
       if (!handler) continue;
-      // Sync throws still propagate to the caller of send(); async rejections
-      // surface on the 'error' event channel instead of becoming unhandled.
       const r = handler(eff, { context, event, signal: controller.signal });
       if (r instanceof Promise) {
         r.catch((err: unknown) => {
-          const payload: RuntimeErrorEvent<Evt> = { error: err, event };
-          emit("error", payload);
+          emit("error", { error: err, event });
         });
       }
+    }
+  }
+
+  // §3.1 Attach one-shot abort listener: parent dispose → child.dispose().
+  // Returns a cleanup fn that detaches the listener; caller stores it in
+  // `childAbortCleanup` and invokes when the child is replaced/disposed
+  // (P1-3 fix: prevent stale listeners accumulating on the parent signal).
+  function wireChildAbort(child: Runtime<unknown, { type: string }, string>): () => void {
+    /* v8 ignore next 7 — parent may already be aborted in edge cases; dispose still runs */
+    if (controller.signal.aborted) {
+      try {
+        child.dispose();
+      } catch {
+        /* swallow */
+      }
+      return () => {};
+    }
+    /* v8 ignore next 7 — defensive: dispose() pre-cleans this listener and
+       disposes the child manually before calling controller.abort(), so
+       onAbort fires only if external code aborts the controller bypassing
+       dispose(). Internal-only controller has no such external path today. */
+    const onAbort = () => {
+      try {
+        child.dispose();
+      } catch {
+        /* swallow */
+      }
+    };
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    return () => controller.signal.removeEventListener("abort", onAbort);
+  }
+
+  // §3.3 Re-resolve guards to find the chosen transition and determine
+  // whether it is external (has a `target`). Replaces the v0.3.0 dev
+  // hasSelfTargetMarker heuristic that over-reported when an event had both
+  // internal (no-target) and self-target (target === value) candidates
+  // (P1-2 fix). Cost: one extra guard evaluation pass per same-value event.
+  function findChosenIsExternal(value: States, event: Evt, context: Ctx): boolean {
+    const state = def.states[value];
+    if (!state?.on) return false;
+    const candidates = state.on[event.type];
+    if (!candidates) return false;
+    const list: readonly TransitionDef<Ctx, Evt, States>[] = Array.isArray(candidates)
+      ? candidates
+      : [candidates as TransitionDef<Ctx, Evt, States>];
+    for (const t of list) {
+      if (!t.guard || evalGuard(t.guard, context, event, impl, value)) {
+        return t.target !== undefined;
+      }
+    }
+    /* v8 ignore next — defensive: caller only invokes when step() returned
+       changed=true, which guarantees a matching guard exists in the same
+       candidate list. The for-loop above always returns before this line. */
+    return false;
+  }
+
+  // §3.1 Dispose old child and/or init new child. Throws SubMachineError on failure.
+  // Caller must NOT commit snapshot on throw.
+  function applySubLifecycle(prevValue: States, nextValue: States): void {
+    const prevStateDef = def.states[prevValue];
+    const nextStateDef = def.states[nextValue];
+    if (prevStateDef?.sub !== undefined && childRuntime !== undefined) {
+      const child = childRuntime;
+      childRuntime = undefined;
+      childAbortCleanup?.();
+      childAbortCleanup = undefined;
+      try {
+        child.dispose();
+      } catch (cause) {
+        throw new SubMachineError(prevValue as string, "dispose", cause);
+      }
+    }
+    if (nextStateDef?.sub !== undefined) {
+      let newChild: Runtime<unknown, { type: string }, string>;
+      try {
+        newChild = createRuntime(nextStateDef.sub, nextStateDef.subImpl ?? {});
+      } catch (cause) {
+        throw new SubMachineError(nextValue as string, "init", cause);
+      }
+      childRuntime = newChild;
+      childAbortCleanup = wireChildAbort(newChild);
     }
   }
 
@@ -135,30 +228,25 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     if (disposed) throw new RuntimeDisposedError();
     const prev = snapshot;
     const result = step(def, prev, event, impl);
+    const isExternal =
+      result.changed &&
+      (prev.value !== result.snapshot.value ||
+        findChosenIsExternal(prev.value, event, prev.context));
+    // Sub lifecycle BEFORE snapshot commit (§3.4); throws SubMachineError on failure → no commit
+    if (result.changed && isExternal) applySubLifecycle(prev.value, result.snapshot.value);
     snapshot = result.snapshot;
-    // Capture this transition's outcome BEFORE any user-controlled callback
-    // runs. Effect handlers and subscribers may synchronously call `send()`
-    // again, which would reassign the outer `snapshot` variable; without this
-    // capture, the transition payload below could end up pointing at a later
-    // reentrant snapshot instead of the snapshot that pairs with `event`.
     const committed = result.snapshot;
-
     runMiddleware(prev, event, result.effects, result.changed);
-
-    if (shouldDispatch) {
-      dispatchEffects(result.effects, committed.context, event);
-    }
-
+    if (shouldDispatch) dispatchEffects(result.effects, committed.context, event);
     if (result.changed) {
       notify(committed);
-      const payload: RuntimeTransitionEvent<Ctx, Evt, States> = {
+      emit("transition", {
         prev,
         next: committed,
         event,
         effects: result.effects,
         changed: true,
-      };
-      emit("transition", payload);
+      } as RuntimeTransitionEvent<Ctx, Evt, States>);
     }
     return snapshot;
   }
@@ -166,20 +254,45 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
   function reset(event?: Evt): Snapshot<Ctx, States> {
     if (disposed) throw new RuntimeDisposedError();
     const prev = snapshot;
-    snapshot = initialSnapshot(def);
-    const changed = prev.value !== snapshot.value;
+    const nextSnap = initialSnapshot(def);
+    const changed = prev.value !== nextSnap.value;
+    // Dispose current child (§3.5)
+    if (childRuntime) {
+      const child = childRuntime;
+      childRuntime = undefined;
+      childAbortCleanup?.();
+      childAbortCleanup = undefined;
+      try {
+        child.dispose();
+      } catch (cause) {
+        throw new SubMachineError(prev.value as string, "dispose", cause);
+      }
+    }
+    // Init child for new initial state if it has sub (§3.5)
+    const initStateDef = def.states[nextSnap.value];
+    if (initStateDef?.sub) {
+      let newChild: Runtime<unknown, { type: string }, string>;
+      try {
+        newChild = createRuntime(initStateDef.sub, initStateDef.subImpl ?? {});
+      } catch (cause) {
+        /* v8 ignore next — reset() init failure: only reachable if frozen sub def somehow rejects post-bootstrap */
+        throw new SubMachineError(nextSnap.value as string, "init", cause);
+      }
+      childRuntime = newChild;
+      childAbortCleanup = wireChildAbort(newChild);
+    }
+    snapshot = nextSnap;
     const triggerEvent: Evt | ResetEvent = event ?? RESET_EVENT;
     runMiddleware(prev, triggerEvent, [], changed);
     if (changed) {
       notify();
-      const payload: RuntimeTransitionEvent<Ctx, Evt, States> = {
+      emit("transition", {
         prev,
         next: snapshot,
         event: triggerEvent,
         effects: [],
         changed: true,
-      };
-      emit("transition", payload);
+      } as RuntimeTransitionEvent<Ctx, Evt, States>);
     }
     return snapshot;
   }
@@ -239,6 +352,17 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
   function dispose(): void {
     if (disposed) return;
     disposed = true;
+    // Cascade child dispose; swallow exceptions (dispose contract) (§3.6)
+    if (childRuntime) {
+      childAbortCleanup?.();
+      childAbortCleanup = undefined;
+      try {
+        childRuntime.dispose();
+      } catch {
+        /* swallow */
+      }
+      childRuntime = undefined;
+    }
     controller.abort();
     listeners.clear();
     emit("dispose", undefined as RuntimeEventMap<Ctx, Evt, States>["dispose"]);
@@ -247,7 +371,7 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
     externalAbortCleanups.clear();
   }
 
-  return {
+  const runtime: Runtime<Ctx, Evt, States> = {
     getSnapshot: () => snapshot,
     snapshot: () => snapshot,
     send,
@@ -266,5 +390,23 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    subRuntime: () => childRuntime,
+    onTransition: (handler, options) => on("transition", handler, options),
   };
+
+  // §2 Bootstrap: if initial state has sub, instantiate child BEFORE returning.
+  // Failure throws SubMachineError(initialState, "init", cause) from createRuntime itself.
+  const bootStateDef = def.states[snapshot.value];
+  if (bootStateDef?.sub) {
+    let newChild: Runtime<unknown, { type: string }, string>;
+    try {
+      newChild = createRuntime(bootStateDef.sub, bootStateDef.subImpl ?? {});
+    } catch (cause) {
+      throw new SubMachineError(snapshot.value as string, "init", cause);
+    }
+    childRuntime = newChild;
+    childAbortCleanup = wireChildAbort(newChild);
+  }
+
+  return runtime;
 }

@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-05-29
+
+### Added
+
+- **Hierarchical / sub-machine sugar** (experimental). `StateDef` accepts
+  two new optional fields: `sub` (a child `SubMachineDef`) and `subImpl`
+  (the child's `Implementations`). When the runtime enters a state with
+  `sub`, a child `Runtime` is lazily instantiated; when it exits, the child
+  is disposed. Access via `runtime.subRuntime()`. See `STABILITY.md` for
+  the experimental contract.
+  - New error: `SubMachineError` (`{ parentState, phase, cause }`) thrown
+    by `send()` / `reset()` on child init / dispose failure. `dispose()`
+    cascade swallows child dispose exceptions (idempotent + never-throws
+    contract).
+  - New type alias: `SubMachineDef<SubCtx, SubEvt, SubStates>`.
+- **`runtime.onTransition(handler, opts?)`** — semantic sugar over
+  `runtime.on('transition', handler, opts)`. One-line delegation; shares
+  the same listener Set, so registration order across both APIs determines
+  invocation order. Returned unsubscribe identical to `on('transition', ...)`.
+
+### Stability
+
+- New file: `STABILITY.md`. Documents the three tiers: **stable**
+  (everything shipped 0.1.0–0.2.1), **experimental** (`sub`, `subImpl`,
+  `subRuntime`, `SubMachineError`, `SubMachineDef`), **draft**
+  (`historyState`, v0.4 candidate).
+
+### Changed (positioning)
+
+- **README "Capabilities / Limitations" table**: "Hierarchical / compound
+  states" moved out of the "Won't do" column. Added on the "Will do" side
+  as "Hierarchical sugar via `state.sub` (experimental since 0.3.0)".
+- **README Lifecycle Invariants**: documented the sub-machine ordering —
+  parent `step()` lifecycle (exit / actions / entry) runs first, then
+  child dispose → child init → snapshot commit → middleware → effects →
+  `transition` emit.
+
+### Build & tooling
+
+- **`scripts/check-size.mjs`**: core gzip budget raised 3,700 → 4,700 B
+  to absorb sub-machine lifecycle, `SubMachineError`, and `onTransition`
+  sugar (measured at 4,465 B). `pbt` budget raised 4,600 → 5,500 B because
+  `pbt/properties.ts` imports `createRuntime` from `runtime.ts`; the new
+  sub-machine code is pulled in transitively (measured at 5,228 B).
+
+### Compatibility
+
+This release is **non-breaking** for v0.2.1 callers who do not opt into
+the new sub-machine fields. All existing API signatures, error types, and
+runtime behaviour are byte-identical.
+
 ## [0.2.1] — 2026-05-28
 
 ### Security

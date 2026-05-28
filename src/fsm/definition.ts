@@ -40,6 +40,22 @@ function validateDefinition<Ctx, Evt extends { type: string }, States extends st
     States,
     (typeof def.states)[States],
   ][]) {
+    // §4 shallow sub-shape check (~35 B gzip)
+    if (stateDef.sub !== undefined) {
+      const sub = stateDef.sub;
+      const subStates = (sub as { states?: unknown }).states;
+      if (
+        typeof sub !== "object" ||
+        sub === null ||
+        typeof subStates !== "object" ||
+        subStates === null ||
+        typeof (sub as { initial?: unknown }).initial !== "string"
+      ) {
+        throw new InvalidDefinitionError(
+          `state "${stateName}".sub is not a valid sub-machine definition (missing states or initial)`,
+        );
+      }
+    }
     if (!stateDef.on) continue;
     for (const [evtType, entry] of Object.entries(stateDef.on)) {
       const transitions = Array.isArray(entry) ? entry : [entry];

@@ -47,6 +47,24 @@ export type TransitionDef<Ctx, Evt, States extends string> = Readonly<{
   actions?: readonly ActionRef<Ctx, Evt>[];
 }>;
 
+/**
+ * @experimental v0.3.0
+ *
+ * A nested machine definition attachable to StateDef.sub. The type parameters
+ * are independent from the parent machine's <Ctx, Evt, States>; sub-machines
+ * may have entirely unrelated context and event shapes.
+ *
+ * This is an alias for MachineDef — sub-machines have the same definition
+ * shape as top-level machines. The relationship is purely lifecycle:
+ * a sub-machine instance is created when its parent state becomes active
+ * and disposed when the parent state exits.
+ */
+export type SubMachineDef<
+  SubCtx,
+  SubEvt extends { type: string },
+  SubStates extends string,
+> = MachineDef<SubCtx, SubEvt, SubStates>;
+
 export type StateDef<Ctx, Evt, States extends string> = Readonly<{
   on?: Readonly<
     Record<string, TransitionDef<Ctx, Evt, States> | readonly TransitionDef<Ctx, Evt, States>[]>
@@ -54,6 +72,29 @@ export type StateDef<Ctx, Evt, States extends string> = Readonly<{
   entry?: readonly ActionRef<Ctx, Evt>[];
   exit?: readonly ActionRef<Ctx, Evt>[];
   final?: boolean;
+  /**
+   * Optional sub-machine. When the runtime enters a state with `sub`,
+   * the sub-machine is lazily instantiated; when it exits, the sub-machine
+   * is disposed. See STABILITY.md for the experimental contract.
+   *
+   * The generic parameters are erased to `any` because sub-machine type
+   * parameters are intentionally independent from the parent's `Ctx` / `Evt`
+   * / `States`. `MachineDef`'s generics are invariant (guards / actions
+   * consume them), so the storage position must use `any` rather than
+   * `unknown`. Caller narrows via `runtime.subRuntime() as Runtime<...>`.
+   *
+   * @experimental since 0.3.0
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: see JSDoc — invariant generic escape hatch
+  sub?: MachineDef<any, any, any>;
+  /**
+   * Implementations for `sub`. Ignored if `sub` is absent. Defaults to `{}`
+   * (sub-machine must rely on inline guards / actions / effects only).
+   *
+   * @experimental since 0.3.0
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: same reason as `sub` above
+  subImpl?: Implementations<any, any>;
 }>;
 
 export type MachineDef<Ctx, Evt extends { type: string }, States extends string> = Readonly<{
@@ -183,6 +224,37 @@ export interface Runtime<Ctx, Evt extends { type: string }, States extends strin
    * (e.g. component teardown) can also attach `signal.addEventListener("abort", ...)`.
    */
   readonly signal: AbortSignal;
+  /**
+   * @experimental v0.3.0
+   *
+   * Returns the currently active sub-Runtime for the current parent state,
+   * or undefined if:
+   *   - the current state has no `sub` definition, OR
+   *   - the sub-Runtime failed to initialise (SubMachineError was thrown
+   *     from `send()` / `reset()` / `createRuntime` per the spec contract),
+   *     OR
+   *   - the parent runtime has been disposed.
+   *
+   * The returned Runtime is typed at the loosest sub-machine signature.
+   * Caller casts to the concrete sub type.
+   *
+   * Re-entry: when the parent leaves and re-enters a state with `sub`, a
+   * fresh sub-Runtime is constructed. Previous sub-Runtime references held
+   * by the caller are stale and MUST NOT be used (disposed).
+   */
+  subRuntime(): Runtime<unknown, { type: string }, string> | undefined;
+  /**
+   * Semantic sugar for `runtime.on('transition', handler, opts)`. Returns
+   * the same unsubscribe function. Sharing the same listener Set with
+   * `on('transition', ...)` means registration order determines invocation
+   * order across both APIs.
+   *
+   * @since 0.3.0
+   */
+  onTransition(
+    handler: (payload: RuntimeTransitionEvent<Ctx, Evt, States>) => void,
+    options?: { signal?: AbortSignal; once?: boolean },
+  ): () => void;
 }
 
 export type RuntimeOptions<Ctx, Evt, States extends string> = Readonly<{

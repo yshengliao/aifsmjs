@@ -10,18 +10,20 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const budgets = {
-  // Core grew to ~3.3 KB after adding the EventTarget-style on(), can(), and
-  // snapshot() spec-aligned APIs in v0.1.1. v0.2.0 adds AsyncGuardError runtime
-  // detection at evaluator.ts and the validateDefinition pass, costing ~120 B
-  // gzip on the core path. Replay shares the lifecycle import and inherits a
-  // ~90 B cost. Both budgets raised by ~150 B with safety margin; tighten when
-  // room is reclaimed (e.g., if the experimental relations code splits out).
-  "dist/index.js": 3_700,
+  // v0.3.0 adds the experimental sub-machine sugar (StateDef.sub / subImpl,
+  // Runtime.subRuntime, SubMachineError, applySubLifecycle in send/reset/
+  // dispose) plus the onTransition sugar. Measured at 4,465 B in v0.3.0.
+  // Raised to 4,700 B for ~235 B safety margin; tighten in 0.3.x if the
+  // experimental code stabilises.
+  "dist/index.js": 4_700,
   "dist/guards/index.js": 1_000,
   "dist/effects/index.js": 1_000,
   "dist/inspect/index.js": 1_000,
   "dist/replay/index.js": 1_800,
-  "dist/pbt/index.js": 4_600,
+  // pbt/index.js imports createRuntime from runtime.ts; the SubMachineError
+  // class and applySubLifecycle code added in v0.3.0 are pulled in transitively.
+  // Measured at 5,228 B in v0.3.0. Raised to 5,500 B for ~272 B safety margin.
+  "dist/pbt/index.js": 5_500,
   "dist/timer/index.js": 1_000,
 };
 

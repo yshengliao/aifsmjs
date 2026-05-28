@@ -13,10 +13,14 @@ export type {
   MiddlewareContext,
   ResetEvent,
   Runtime,
+  RuntimeErrorEvent,
+  RuntimeEventMap,
   RuntimeOptions,
+  RuntimeTransitionEvent,
   Snapshot,
   StateDef,
   StepResult,
+  SubMachineDef,
   TransitionDef,
 } from "./types.js";
 
@@ -30,7 +34,7 @@ export {
   setup,
 } from "./definition.js";
 export { step, UnknownActionError } from "./lifecycle.js";
-export { createRuntime, RuntimeDisposedError } from "./runtime.js";
+export { createRuntime, RuntimeDisposedError, SubMachineError } from "./runtime.js";
 export { assign, mergeContext } from "./updater.js";
 export {
   AsyncGuardError,

@@ -119,15 +119,16 @@ The three layers are fully decoupled: take `step()` alone for replay, take `Mach
 
 | Will do (v1)                                        | Won't do                                          |
 | --------------------------------------------------- | ------------------------------------------------- |
-| Flat states + transitions                           | Hierarchical / compound states                    |
+| Flat states + transitions                           | Parallel state regions                            |
+| Hierarchical sugar via `state.sub` (experimental, since 0.3.0) | Closures embedded in definition (breaks serialize) |
 | Guards (sync only; inline async throws `InvalidDefinitionError` at `defineMachine`; runtime throws `AsyncGuardError` on thenable return) | Async guards                                      |
 | Actions (assign + enqueue effects)                  | Async API inside an action (use an effect)        |
 | Fire-and-forget effects                             | Actor invocation / spawn                          |
 | Read-only inspect middleware                        | Cancellable transition middleware                 |
 | `replay(initial, log, def, impl)` pure function     | Time-travel debugger (v2 candidate)               |
 | `fast-check` `fc.commands` adapter                   | Custom PBT framework                               |
-| String ref + runtime injection                      | Closures embedded in definition (breaks serialize) |
-| Tree-shake friendly subpath exports                  | Single root import for everything                 |
+| String ref + runtime injection                      | Single root import for everything                 |
+| Tree-shake friendly subpath exports                  | ECS / Pixi bridges (opt-in subpath, not core)     |
 
 ---
 
@@ -369,6 +370,27 @@ Non-goals:
 - No async lifecycle hook
 - Inspect middleware cannot alter the transition outcome
 
+### Sub-machine lifecycle (since 0.3.0, experimental)
+
+When a state declares `sub`, the per-transition ordering is:
+
+1. Parent `step()` runs: `exit actions → transition.actions → entry actions`.
+2. Old child (if any) `dispose()` — synchronous; exceptions become
+   `SubMachineError(phase: "dispose")`.
+3. New child (if next state has `sub`) instantiation — exceptions become
+   `SubMachineError(phase: "init")`.
+4. Parent snapshot commits.
+5. Middleware pipeline runs.
+6. Effects dispatch.
+7. `'transition'` event emits to `on()` / `onTransition()` subscribers.
+
+If step 2 or 3 throws, the parent snapshot is **not** committed (rollback
+to `prev`); no middleware / effects / `'transition'` runs.
+
+`runtime.dispose()` cascades to the child via `controller.signal`'s abort
+listener and an explicit `child.dispose()` call. Cascade swallows child
+exceptions to honour the never-throws dispose contract.
+
 ---
 
 ## Lifecycle Protocol
@@ -451,7 +473,7 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 - **Example tests** (vitest): for every src module, write happy path + edge + error-message triplets.
 - **PBT smoke**: each generic property runs 50 iterations as an invariant guard, not as a coverage source.
 - **CI-enforced thresholds**: `@vitest/coverage-v8` is wired to **100% statements / 100% lines / 100% functions / ≥90% branches**. The few defensive invariant-guard branches (e.g. runtime determinism mismatch) carry `/* v8 ignore */` annotations with rationale.
-- **Size budget**: `scripts/check-size.mjs` enforces per-subpath gzip caps in CI — core ≤3 KB, replay ≤1.6 KB, pbt ≤4.5 KB, others ≤1 KB. Exceeding any cap fails the build.
+- **Size budget**: `scripts/check-size.mjs` enforces per-subpath gzip caps in CI — core ≤4.7 KB (raised in 0.3.0 for sub-machine sugar), replay ≤1.8 KB, pbt ≤5.5 KB (raised in 0.3.0 because `pbt` transitively imports `createRuntime`), others ≤1 KB. Exceeding any cap fails the build.
 
 ### The 6 built-in generic properties
 
@@ -471,7 +493,7 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 |                            | aifsmjs        | XState v5         | Robot3            | @xstate/store     | Zag.js            |
 | -------------------------- | -------------- | ----------------- | ----------------- | ----------------- | ----------------- |
 | Core size (gzip)           | ~2.8KB         | ~15KB             | ~1KB              | < 1KB             | per-component     |
-| Hierarchical states         | No (v1)        | Yes               | No                | N/A               | Yes               |
+| Hierarchical states         | Sugar (0.3.0)  | Yes               | No                | N/A               | Yes               |
 | Async invoke / actor        | No             | Yes               | No                | N/A               | No                |
 | Guard combinators           | and/or/not     | and/or/not        | No                | N/A               | No                |
 | Effects dual-track          | enqueue        | enqueueActions    | reduce/action     | enq.effect()      | array of names    |
@@ -487,11 +509,22 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 | Version | Scope                                                              |
 | ------- | ------------------------------------------------------------------ |
 | v0.1    | core + guards + effects + inspect + replay + pbt (this release)    |
-| v0.2    | Hierarchical / compound states, including entry/exit ordering       |
-| v0.3    | Parallel state regions                                              |
-| v0.4    | Actor invocation (async) and spawn                                  |
+| v0.2    | Async-guard detection, coverage tuning, llms-full.txt verify gate  |
+| v0.3    | Hierarchical sugar via `state.sub` (experimental, this release)    |
+| v0.4    | `historyState` — remember last active sub-state on re-entry        |
 | v0.5    | `aifsmjs-bridge-bitecs` / `aifsmjs-bridge-pixi` (separate sub-packages) |
 | v1.0    | API freeze and stability guarantee                                  |
+
+**Out of scope (v1)**:
+
+- **Parallel state regions** (out of scope for v1)
+- **Actor invocation / spawn** (out of scope for v1)
+- **Tick / game-loop hook** (out of scope for v1)
+- **ECS / Pixi bridges** (out of scope for v1)
+
+**v0.4 candidate**: `historyState` — remember last active sub-state on
+re-entry. Workaround today: snapshot via `onTransition` and restore
+manually.
 
 ---
 
@@ -509,6 +542,57 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.3.0] — 2026-05-29
+
+### Added
+
+- **Hierarchical / sub-machine sugar** (experimental). `StateDef` accepts
+  two new optional fields: `sub` (a child `SubMachineDef`) and `subImpl`
+  (the child's `Implementations`). When the runtime enters a state with
+  `sub`, a child `Runtime` is lazily instantiated; when it exits, the child
+  is disposed. Access via `runtime.subRuntime()`. See `STABILITY.md` for
+  the experimental contract.
+  - New error: `SubMachineError` (`{ parentState, phase, cause }`) thrown
+    by `send()` / `reset()` on child init / dispose failure. `dispose()`
+    cascade swallows child dispose exceptions (idempotent + never-throws
+    contract).
+  - New type alias: `SubMachineDef<SubCtx, SubEvt, SubStates>`.
+- **`runtime.onTransition(handler, opts?)`** — semantic sugar over
+  `runtime.on('transition', handler, opts)`. One-line delegation; shares
+  the same listener Set, so registration order across both APIs determines
+  invocation order. Returned unsubscribe identical to `on('transition', ...)`.
+
+### Stability
+
+- New file: `STABILITY.md`. Documents the three tiers: **stable**
+  (everything shipped 0.1.0–0.2.1), **experimental** (`sub`, `subImpl`,
+  `subRuntime`, `SubMachineError`, `SubMachineDef`), **draft**
+  (`historyState`, v0.4 candidate).
+
+### Changed (positioning)
+
+- **README "Capabilities / Limitations" table**: "Hierarchical / compound
+  states" moved out of the "Won't do" column. Added on the "Will do" side
+  as "Hierarchical sugar via `state.sub` (experimental since 0.3.0)".
+- **README Lifecycle Invariants**: documented the sub-machine ordering —
+  parent `step()` lifecycle (exit / actions / entry) runs first, then
+  child dispose → child init → snapshot commit → middleware → effects →
+  `transition` emit.
+
+### Build & tooling
+
+- **`scripts/check-size.mjs`**: core gzip budget raised 3,700 → 4,700 B
+  to absorb sub-machine lifecycle, `SubMachineError`, and `onTransition`
+  sugar (measured at 4,465 B). `pbt` budget raised 4,600 → 5,500 B because
+  `pbt/properties.ts` imports `createRuntime` from `runtime.ts`; the new
+  sub-machine code is pulled in transitively (measured at 5,228 B).
+
+### Compatibility
+
+This release is **non-breaking** for v0.2.1 callers who do not opt into
+the new sub-machine fields. All existing API signatures, error types, and
+runtime behaviour are byte-identical.
 
 ## [0.2.1] — 2026-05-28
 
