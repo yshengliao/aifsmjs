@@ -510,6 +510,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-05-28
+
+### Fixed
+
+- **Memory**: `runtime.on(type, fn, { signal })` previously left an
+  abort listener attached to the external `AbortSignal` after
+  `runtime.dispose()`. The listener (and its closure over the user's
+  callback) was retained until the signal eventually fired or was
+  garbage-collected. `dispose()` now removes each abort listener from
+  the signal it was attached to, and the unsubscribe function returned
+  by `on()` does the same on manual unsubscribe.
+
+### Internal
+
+- Narrowed `dispatchEffects` event parameter from `Evt | ResetEvent`
+  to `Evt`; the function is only reached via `send()`. Removed the
+  corresponding `as Evt` cast.
+- Removed a redundant `snapshot.context as Ctx` cast in `step()`.
+
+No public API changes; existing 0.1.1 callers run unchanged. Core gzip
+3296 B → 3401 B (97% of 3500 B budget).
+
 ## [0.1.1] — 2026-05-28
 
 ### Changed
