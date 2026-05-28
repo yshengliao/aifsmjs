@@ -1,3 +1,4 @@
+import * as fc from "fast-check";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineMachine, setup } from "../../src/fsm/definition.js";
 import { SubMachineError, createRuntime } from "../../src/fsm/runtime.js";
@@ -700,5 +701,99 @@ describe("Group I — SubMachineError rollback", () => {
     expect((thrown as SubMachineError).phase).toBe("dispose");
     // Snapshot rolled back to prev
     expect(rt.getSnapshot().value).toBe(prevValue);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Group J — property-based lifecycle invariants
+//
+// Random-walk the parentMachine fixture over its event/reset alphabet and
+// assert the sub-machine lifecycle invariants hold after EVERY step. This is
+// the §2-checklist PBT requirement for the [must] sub-machine feature; the
+// example-based Groups A-I cover specific transitions, this covers arbitrary
+// sequences fast-check can shrink.
+//
+// parentMachine: idle --START--> loading --FINISH--> done(final)
+//                        loading --RETRY--> loading (self-target external)
+// The ONLY sub-bearing state is "loading".
+// ---------------------------------------------------------------------------
+
+describe("Group J — property-based lifecycle invariants", () => {
+  type Cmd = "START" | "FINISH" | "RETRY" | "RESET";
+  const cmdArb = fc.constantFrom<Cmd>("START", "FINISH", "RETRY", "RESET");
+
+  // Drive the shared parentMachine fixture. A switch (not an `as` cast) keeps
+  // the event union narrow; "RESET" maps to the runtime method, not an event.
+  function drive(rt: ReturnType<typeof makeParentRuntime>, cmd: Cmd): void {
+    switch (cmd) {
+      case "RESET":
+        rt.reset();
+        break;
+      case "START":
+        rt.send({ type: "START" });
+        break;
+      case "FINISH":
+        rt.send({ type: "FINISH" });
+        break;
+      case "RETRY":
+        rt.send({ type: "RETRY" });
+        break;
+    }
+  }
+  function makeParentRuntime() {
+    return createRuntime(parentMachine, parentImpl);
+  }
+
+  it("J1: subRuntime() is defined IFF current state has a sub; the live child is never disposed", () => {
+    fc.assert(
+      fc.property(fc.array(cmdArb, { maxLength: 30 }), (cmds) => {
+        const rt = makeParentRuntime();
+        const check = () => {
+          const inSubState = rt.getSnapshot().value === "loading";
+          const child = rt.subRuntime();
+          // P1 — lifecycle binding: child exists exactly when in a sub-bearing state
+          expect(child !== undefined).toBe(inSubState);
+          // P2 — the live child is never observed disposed
+          if (child !== undefined) expect(child.disposed).toBe(false);
+        };
+        check(); // t=0 (initial state "idle" has no sub)
+        for (const cmd of cmds) {
+          drive(rt, cmd);
+          check();
+        }
+        rt.dispose();
+        // After parent dispose the child reference is cleared.
+        expect(rt.subRuntime()).toBeUndefined();
+      }),
+      { numRuns: 50 },
+    );
+  });
+
+  it("J2: every replaced child ends disposed; only the live child (if any) stays undisposed; parent dispose disposes all", () => {
+    fc.assert(
+      fc.property(fc.array(cmdArb, { maxLength: 30 }), (cmds) => {
+        const rt = makeParentRuntime();
+        const seen = new Set<Runtime<unknown, { type: string }, string>>();
+        const track = () => {
+          const child = rt.subRuntime();
+          if (child) seen.add(child);
+        };
+        track();
+        for (const cmd of cmds) {
+          drive(rt, cmd);
+          track();
+        }
+        const live = rt.subRuntime();
+        // Every child ever created that is not the current live one is disposed.
+        for (const c of seen) {
+          if (c !== live) expect(c.disposed).toBe(true);
+        }
+        if (live) expect(live.disposed).toBe(false);
+        rt.dispose();
+        // Parent dispose cascades to every child instance ever created.
+        for (const c of seen) expect(c.disposed).toBe(true);
+      }),
+      { numRuns: 50 },
+    );
   });
 });
