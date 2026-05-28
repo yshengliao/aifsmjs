@@ -1,11 +1,16 @@
 {
   "name": "aifsmjs",
   "version": "0.1.0",
-  "description": "AI-readable, human-readable finite state machine library. Pure step() lifecycle, opt-in effects, inspect, replay, and fast-check property-based testing adapter.",
+  "description": "Small, strict FSM library for web game development. Pure step() lifecycle, opt-in effects, inspect, replay, and a fast-check property-based testing adapter. Browser / Node / WebView friendly.",
   "keywords": [
     "fsm",
     "state-machine",
     "finite-state-machine",
+    "game-state",
+    "game-dev",
+    "web-game",
+    "pixijs",
+    "svelte",
     "xstate-alternative",
     "ai-readable",
     "property-based-testing",

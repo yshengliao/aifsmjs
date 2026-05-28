@@ -6,13 +6,15 @@
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![English](https://img.shields.io/badge/lang-English-blue.svg)](README.en.md)
 
-> 一個小而嚴格的 FSM library，把 lifecycle 寫成 pure `step()`，把 Chain-of-Responsibility 直覺收斂到 cross-cutting concerns（observe / persist / replay）—— 而非 transition 主流程。
+> 一個小而嚴格的 FSM library，為**網頁遊戲開發**而生：把 lifecycle 寫成 pure `step()`，把 Chain-of-Responsibility 直覺收斂到 cross-cutting concerns（observe / persist / replay）—— 而非 transition 主流程。
+
+**主要受眾**：用 PixiJS / Svelte 5 / 純 Canvas / WebGL 做網頁小遊戲、休閒遊戲、互動式網頁的開發者。場景例如：場景流轉（loading → menu → playing → result）、角色 AI 狀態、互動 UI 流程、教學引導步驟、回合制邏輯。Library 本身**環境中立**（pure core + adapter 邊界），browser、Node、Flutter WebView 都能跑；遊戲只是首要 use case。
 
 ---
 
 ## 為什麼有 aifsmjs
 
-從 C# 帶著 CoR 慣性轉到 JS/TS 的人，通常會把 lifecycle 拆成可中止的 middleware chain，這在 FSM 領域會破壞 determinism 與 replay 能力。aifsmjs 反其道：
+從 C# 帶著 CoR 慣性轉到 JS/TS 的人，通常會把 lifecycle 拆成可中止的 middleware chain，這在 FSM 領域會破壞 determinism 與 replay 能力。網頁遊戲對「可重放、可序列化、可在 worker 跑」的需求尤其重，aifsmjs 反其道：
 
 - **Lifecycle 是 pure function**：`step(def, snapshot, event, impl)` 一次完成 `guards → exit → action → entry`，順序固定、不可中止、不可注入。
 - **CoR 思維只用在橫切層**：`inspect/` 提供 Koa-style middleware pipeline，但只能觀察 snapshot 與發出事件，**不能改 transition 結果**。

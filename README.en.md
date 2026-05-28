@@ -6,7 +6,9 @@
 [![AI Generated](https://img.shields.io/badge/AI_Generated-Claude_Code_Opus_4.7_Max-blueviolet.svg)](https://www.anthropic.com/claude-code)
 [![繁體中文](https://img.shields.io/badge/lang-繁體中文-red.svg)](README.md)
 
-> A small, strict FSM library. Lifecycle is a pure `step()` function. Chain-of-Responsibility intuition is reserved for cross-cutting concerns (observe / persist / replay), never for the transition core.
+> A small, strict FSM library built for **web game development**. Lifecycle is a pure `step()` function. Chain-of-Responsibility intuition is reserved for cross-cutting concerns (observe / persist / replay), never for the transition core.
+
+**Primary audience**: developers building browser-based games and interactive web experiences on PixiJS / Svelte 5 / plain Canvas / WebGL. Typical use cases: scene flow (loading → menu → playing → result), character AI state, interactive UI flows, tutorial steps, turn-based logic. The library itself is **environment-neutral** (pure core + adapter boundary) — browser, Node, and Flutter WebView all work; games are simply the first-class use case.
 
 > _Originally documented in Traditional Chinese — see [README.md](README.md) for the canonical version._
 
@@ -14,7 +16,7 @@
 
 ## Why aifsmjs
 
-Developers coming from C# Chain-of-Responsibility instinctively wrap FSM lifecycle in a cancellable middleware chain. In FSM territory that breaks determinism and replay. aifsmjs goes the other way:
+Developers coming from C# Chain-of-Responsibility instinctively wrap FSM lifecycle in a cancellable middleware chain. In FSM territory that breaks determinism and replay. Web games in particular need replayable, serializable, worker-friendly state, so aifsmjs goes the other way:
 
 - **Lifecycle is a pure function**: `step(def, snapshot, event, impl)` runs `guards → exit → action → entry` in a fixed, uninterruptible order.
 - **CoR intuition is reserved for cross-cutting layers**: `inspect/` provides a Koa-style middleware pipeline, but it can only observe — **never alter the transition outcome**.
