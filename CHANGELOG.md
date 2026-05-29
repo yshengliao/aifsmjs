@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] — 2026-05-29
+
+### Changed
+
+- **Sub-machine API promoted experimental → stable.** The hierarchical
+  sub-machine surface shipped in 0.3.0 — `StateDef.sub`, `StateDef.subImpl`,
+  `Runtime.subRuntime()`, `SubMachineError`, and the `SubMachineDef` type
+  alias — is now stable. Signatures and runtime semantics, including the
+  init-failure quarantine behaviour, are frozen for the 1.x line; the
+  boundaries documented in `STABILITY.md` are intentional design trade-offs,
+  not instability. **No signature changed from 0.3.x.**
+
+### Dependency reduction
+
+- Part of the ai*js v0.4.0 dependency-reduction cycle. `fast-check` remains
+  an **optional** peer dependency isolated to the `aifsmjs/pbt` subpath. A
+  fresh build confirms the core entry and the five non-pbt subpaths
+  (`guards` / `effects` / `inspect` / `replay` / `timer`) are tree-shake-free
+  of `fast-check` (only `dist/pbt/index.js` references it). `pnpm audit`
+  reports zero advisories. No `devDependency` changes.
+
+### Compatibility
+
+This release adds **no runtime API** and changes **no signature**. The core
+bundle is byte-identical to 0.3.1 (gzip 4,387 B); existing 0.3.x consumer
+code is unaffected. The only substantive change is the documented stability
+tier of the sub-machine API.
+
 ## [0.3.1] — 2026-05-29
 
 ### Fixed

@@ -27,10 +27,13 @@ Fully stable. Breaking changes only at a major version bump (1.0+).
   `on('transition', ...)` API; listed under Stable because the underlying
   contract is unchanged.
 
-## Experimental (since 0.3.0)
+### Sub-machines (stable since 0.4.0)
 
-Shape and behaviour may change in any minor bump until 1.0. Production use
-is OK; expect a one-line patch on minor upgrades.
+The hierarchical sub-machine surface shipped experimentally in 0.3.0 is
+stable as of 0.4.0. Signatures and runtime semantics — including the
+init-failure quarantine behaviour described below — are frozen for the 1.x
+line. The boundaries listed are intentional design trade-offs, not bugs or
+pending instability.
 
 - `StateDef.sub` (optional `SubMachineDef`) — when present, a child runtime
   is lazily initialised on entry and disposed on exit. Per-transition
@@ -45,7 +48,7 @@ is OK; expect a one-line patch on minor upgrades.
   failure. Fields: `parentState`, `phase ("init" | "dispose")`, `cause`.
 - `SubMachineDef` type alias.
 
-### Known boundaries (0.3.0)
+#### Design boundaries
 
 - **Replay / PBT do not see child state.** `replay()` and
   `commandsFromMachine` only inspect parent snapshots. If your business
@@ -54,24 +57,31 @@ is OK; expect a one-line patch on minor upgrades.
   disposed it. The handle is not reinitialised until the parent leaves and
   re-enters the sub-bearing state. Detect with `child.disposed`.
 - **Self-targeting external (`A → A`) is treated as full exit/entry**:
-  child is disposed and reinitialised. The 0.3.0 dispatcher re-resolves
-  guards to identify the chosen transition before deciding external vs
-  internal, so guarded internal transitions on the same event no longer
-  trigger a reinit.
+  child is disposed and reinitialised. The dispatcher re-resolves guards to
+  identify the chosen transition before deciding external vs internal, so
+  guarded internal transitions on the same event do not trigger a reinit.
 - **Init-failure mid-transition leaves the parent without a live child.**
   If `applySubLifecycle` successfully disposes the old child and then the
   new child's `createRuntime` throws, the parent's snapshot is rolled back
   to `prev` but `subRuntime()` returns `undefined`. Callers catching
   `SubMachineError(phase: "init")` should treat the runtime as quarantined
   — call `runtime.dispose()` (idempotent) or `runtime.reset()` (which
-  attempts re-init) before sending further events. A future major may
-  switch to a two-phase "init before dispose" commit strategy; for 0.3.x
-  this remains opt-in only when child failures are expected.
+  attempts re-init) before sending further events. This quarantine
+  behaviour is part of the stable contract; a future **major** version may
+  switch to a two-phase "init before dispose" commit strategy (a breaking
+  change reserved for 1.0+), but the current semantics are frozen for the
+  1.x line.
 
-## Draft (planned, not implemented in 0.3.0)
+## Experimental
+
+No experimental APIs as of 0.4.0. The 0.3.0 sub-machine surface graduated to
+Stable in 0.4.0 — see "Sub-machines" above.
+
+## Draft (planned, not implemented)
 
 API sketched, not shipped. May change before release.
 
-- `historyState` (v0.4 candidate) — opt-in pseudo-state that remembers
-  the last active sub-state on re-entry. Workaround in 0.3.0: snapshot
-  the sub-runtime's value on exit via `onTransition`, restore manually.
+- `historyState` (candidate for a future minor) — opt-in pseudo-state that
+  remembers the last active sub-state on re-entry. Workaround in 0.3.0:
+  snapshot the sub-runtime's value on exit via `onTransition`, restore
+  manually.

@@ -107,7 +107,7 @@ The three layers are fully decoupled: take `step()` alone for replay, take `Mach
 | Will do (v1)                                        | Won't do                                          |
 | --------------------------------------------------- | ------------------------------------------------- |
 | Flat states + transitions                           | Parallel state regions                            |
-| Hierarchical sugar via `state.sub` (experimental, since 0.3.0) | Closures embedded in definition (breaks serialize) |
+| Hierarchical sugar via `state.sub` (stable since 0.4.0) | Closures embedded in definition (breaks serialize) |
 | Guards (sync only; inline async throws `InvalidDefinitionError` at `defineMachine`; runtime throws `AsyncGuardError` on thenable return) | Async guards                                      |
 | Actions (assign + enqueue effects)                  | Async API inside an action (use an effect)        |
 | Fire-and-forget effects                             | Actor invocation / spawn                          |
@@ -357,7 +357,7 @@ Non-goals:
 - No async lifecycle hook
 - Inspect middleware cannot alter the transition outcome
 
-### Sub-machine lifecycle (since 0.3.0, experimental)
+### Sub-machine lifecycle (stable since 0.4.0)
 
 When a state declares `sub`, the per-transition ordering is:
 
@@ -497,8 +497,8 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 | ------- | ------------------------------------------------------------------ |
 | v0.1    | core + guards + effects + inspect + replay + pbt (this release)    |
 | v0.2    | Async-guard detection, coverage tuning, llms-full.txt verify gate  |
-| v0.3    | Hierarchical sugar via `state.sub` (experimental, this release)    |
-| v0.4    | `historyState` — remember last active sub-state on re-entry        |
+| v0.3    | Hierarchical sugar via `state.sub` (experimental)                  |
+| v0.4    | Sub-machine API promoted to stable; dependency-reduction cycle     |
 | v0.5    | `aifsmjs-bridge-bitecs` / `aifsmjs-bridge-pixi` (separate sub-packages) |
 | v1.0    | API freeze and stability guarantee                                  |
 
@@ -509,7 +509,7 @@ Example-first, PBT-augmented. Lesson from jssm: "3000+ tests / 100% coverage" tu
 - **Tick / game-loop hook** (out of scope for v1)
 - **ECS / Pixi bridges** (out of scope for v1)
 
-**v0.4 candidate**: `historyState` — remember last active sub-state on
+**Future candidate**: `historyState` — remember last active sub-state on
 re-entry. Workaround today: snapshot via `onTransition` and restore
 manually.
 
