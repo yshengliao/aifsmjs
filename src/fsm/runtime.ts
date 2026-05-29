@@ -321,32 +321,34 @@ export function createRuntime<Ctx, Evt extends { type: string }, States extends 
   ): () => void {
     if (disposed || options?.signal?.aborted) return () => {};
     const target = eventListeners[type];
-    let wrapped: (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void = listener;
-    if (options?.once) {
-      wrapped = (payload) => {
-        target.delete(wrapped);
-        listener(payload);
-      };
-    }
-    target.add(wrapped);
     let detachAbort: (() => void) | undefined;
-    const signal = options?.signal;
-    if (signal) {
-      const onAbort = () => {
-        target.delete(wrapped);
-        if (detachAbort) externalAbortCleanups.delete(detachAbort);
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-      detachAbort = () => signal.removeEventListener("abort", onAbort);
-      externalAbortCleanups.add(detachAbort);
-    }
-    return () => {
+    // Full teardown shared by the once-wrapper, the abort handler, and the
+    // returned unsubscribe so every path detaches the abort listener too — a
+    // once-handler that also passed a { signal } previously left the abort
+    // listener attached until dispose()/abort (memory leak).
+    const cleanup = (): void => {
       target.delete(wrapped);
       if (detachAbort) {
         detachAbort();
         externalAbortCleanups.delete(detachAbort);
       }
     };
+    let wrapped: (payload: RuntimeEventMap<Ctx, Evt, States>[K]) => void = listener;
+    if (options?.once) {
+      wrapped = (payload) => {
+        cleanup();
+        listener(payload);
+      };
+    }
+    target.add(wrapped);
+    const signal = options?.signal;
+    if (signal) {
+      const onAbort = () => cleanup();
+      signal.addEventListener("abort", onAbort, { once: true });
+      detachAbort = () => signal.removeEventListener("abort", onAbort);
+      externalAbortCleanups.add(detachAbort);
+    }
+    return cleanup;
   }
 
   function dispose(): void {

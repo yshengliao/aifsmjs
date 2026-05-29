@@ -543,6 +543,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-05-29
+
+### Fixed
+
+- **Memory: `on(type, fn, { once: true, signal })` left the abort listener
+  attached after the once-handler fired.** The `once` wrapper removed itself
+  from the listener set but did not detach the `AbortSignal` listener or drop
+  its entry from the internal cleanup set, so the closure lingered on the
+  external signal until the signal aborted or `dispose()` ran. With a
+  long-lived signal and repeated once+signal registration, dead listeners
+  accumulated. `on()` now routes the once-wrapper, the abort handler, and the
+  returned unsubscribe through a single `cleanup()` that always detaches the
+  abort listener. `runtime.onTransition(fn, { once, signal })` inherits the
+  fix (it delegates to `on`). Same class of leak as the [0.1.2] abort-listener
+  fix; `once` + `signal` together was the remaining gap. Present since 0.1.2.
+
+This release is **non-breaking**. No API surface change; `once`-only,
+`signal`-only, and no-option callers are byte-for-byte unaffected at runtime.
+Core gzip 4,393 B → 4,387 B (the shared `cleanup` closure deduplicates).
+
 ## [0.3.0] — 2026-05-29
 
 ### Added

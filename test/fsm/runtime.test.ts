@@ -454,4 +454,38 @@ describe("runtime lifecycle — dispose / reset / signal", () => {
     runtime.reset();
     expect(observed).toBe(false);
   });
+
+  it("on() once+signal detaches abort listener on first fire (memory-leak regression)", () => {
+    // Regression: the old once-wrapper only called target.delete(wrapped) but
+    // never invoked detachAbort, leaving the onAbort closure attached to the
+    // external signal and detachAbort still in externalAbortCleanups. With a
+    // long-lived signal and repeated once+signal registrations, dead closures
+    // accumulate. The fix shares a single cleanup() closure across all three
+    // teardown paths (once-wrapper, onAbort, returned unsubscribe).
+    const runtime = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    const removeSpy = vi.spyOn(ac.signal, "removeEventListener");
+    const fn = vi.fn();
+
+    runtime.on("transition", fn, { once: true, signal: ac.signal });
+    // Fire one transition — once-wrapper should run cleanup(), which detaches
+    // the abort listener from the external signal.
+    runtime.send({ type: "NEXT" }); // red → green
+
+    // Handler must have fired exactly once.
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    // removeEventListener("abort", ...) must have been called by cleanup() —
+    // proof that the abort listener was detached when the once-wrapper fired.
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+
+    // Aborting the signal after the once-handler fired must be a harmless no-op
+    // (no throw, no second invocation of fn).
+    expect(() => ac.abort()).not.toThrow();
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    // A further transition must also be a no-op for this handler.
+    runtime.send({ type: "NEXT" }); // green → yellow
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
 });

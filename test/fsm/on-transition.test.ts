@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createRuntime } from "../../src/fsm/runtime.js";
 import type { RuntimeTransitionEvent } from "../../src/fsm/types.js";
 import {
@@ -135,5 +135,42 @@ describe("Runtime.onTransition()", () => {
     unsub();
     // If we reach here, compile and runtime both passed
     expect(true).toBe(true);
+  });
+
+  it("OT11: onTransition(fn, { signal }) where signal is already aborted before registration → no-op", () => {
+    // AbortSignal pre-abort phase: the signal is aborted BEFORE registration.
+    // on() / onTransition() should detect options.signal.aborted and return a
+    // no-op unsubscribe without ever adding the listener.
+    const rt = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    ac.abort(); // abort BEFORE registration
+    const fn = vi.fn();
+    const unsub = rt.onTransition(fn, { signal: ac.signal });
+    // Must return a callable no-op.
+    expect(typeof unsub).toBe("function");
+    expect(() => unsub()).not.toThrow();
+    // Handler must never fire regardless of subsequent transitions.
+    rt.send({ type: "NEXT" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("OT12: onTransition(fn, { once: true, signal }) — once fires handler once; abort after fire is a no-op, no double-invoke", () => {
+    // once+signal combination: after the first transition fires the handler
+    // once, cleanup() detaches the abort listener. Aborting the signal
+    // afterwards must NOT throw and must NOT invoke fn a second time.
+    const rt = createRuntime(trafficLight, makeImpl());
+    const ac = new AbortController();
+    const fn = vi.fn();
+    rt.onTransition(fn, { once: true, signal: ac.signal });
+
+    rt.send({ type: "NEXT" }); // red → green — handler fires once
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    // Abort after once-fire: teardown already happened; must be harmless.
+    expect(() => ac.abort()).not.toThrow();
+    expect(fn).toHaveBeenCalledTimes(1); // no double-invoke
+
+    rt.send({ type: "NEXT" }); // green → yellow — handler must stay silent
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });
