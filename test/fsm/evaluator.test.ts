@@ -64,8 +64,8 @@ describe("evaluator", () => {
   });
 
   it("evalGuard throws AsyncGuardError when a string-ref points at an async impl", () => {
-    // biome-ignore lint/suspicious/noExplicitAny: deliberate any to bypass TS guard check
     const asyncImpl: Implementations<Ctx, Evt> = {
+      // biome-ignore lint/suspicious/noExplicitAny: deliberate any to bypass TS guard check
       guards: { badGuard: (async () => true) as any },
     };
     expect(() => evalGuard("badGuard", { n: 0 }, { type: "X" }, asyncImpl)).toThrow(
