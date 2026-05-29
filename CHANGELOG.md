@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-05-29
+
+### Changed
+
+- **`STABILITY.md` is now repo-only** — removed from the npm `files`
+  allowlist, aligning with the majority of the ai*js family (5 of 7
+  packages already ship the stability contract repo-only). The file stays
+  in the repository and remains visible on GitHub and the rendered npm
+  package page; it is simply no longer bundled inside the published
+  tarball. Packaging consistency patch: **no runtime API change, no
+  signature change**; the built bundles (`dist/`) are byte-identical to
+  0.4.0 (core gzip 4,387 B).
+
 ## [0.4.0] — 2026-05-29
 
 ### Changed
